@@ -100,7 +100,6 @@ def remove_dir(name):
         shutil.rmtree(name)
 
 
-
 class Configuration:
     def __init__(self, no_modbus_log=False, no_modbus_console_log=False,
                  no_modbus_file_log=True, modbus_console_log_level="DEBUG",
@@ -116,7 +115,7 @@ class Configuration:
         return vars(self)
 
 
-def configure_modbus_logger(cfg, protocol_logger ="modbus_tk",
+def configure_modbus_logger(cfg, protocol_logger="modbus_tk",
                             recycle_logs=True):
     """
     Configure the logger.
@@ -155,4 +154,3 @@ def configure_modbus_logger(cfg, protocol_logger ="modbus_tk",
             fh.setFormatter(fmtr)
             fh.setLevel(cfg.modbus_file_log_level.upper())
             logger.addHandler(fh)
-

@@ -13,7 +13,7 @@ from kivy.uix.listview import ListItemButton, CompositeListItem, ListView, Selec
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.uix.dropdown import DropDown
-from modbus_simulator.utils.backgroundJob import BackgroundJob
+from modbus_simulator.utils.background_job import BackgroundJob
 from pkg_resources import resource_filename
 
 datamodel_template = resource_filename(__name__, "../templates/datamodel.kv")
@@ -24,8 +24,16 @@ integers_dict = {}
 
 class DropBut(SelectableView, Button):
     # drop_list = None
-    types = ['int16', 'int32', 'int64', 'uint16', 'uint32', 'uint64',
-             'float32', 'float64']
+    types = [
+        'int16',
+        'int32',
+        'int64',
+        'uint16',
+        'uint32',
+        'uint64',
+        'float32',
+        'float64'
+    ]
     drop_down = None
 
     def __init__(self, data_model, **kwargs):
@@ -58,13 +66,14 @@ class ErrorPopup(Popup):
     """
     Popup class to display error messages
     """
+
     def __init__(self, **kwargs):
         # print kwargs
         super(ErrorPopup, self).__init__()
         # super(ErrorPopup, self).__init__(**kwargs)
         content = BoxLayout(orientation="vertical")
         content.add_widget(Label(text=kwargs['text'], font_size=20))
-        mybutton = Button(text="Dismiss", size_hint=(1,.20), font_size=20)
+        mybutton = Button(text="Dismiss", size_hint=(1, .20), font_size=20)
         content.add_widget(mybutton)
         self.content = content
         self.title = kwargs["title"]
@@ -82,9 +91,12 @@ class ListItemReprMixin(Label):
     """
     repr class for ListItem Composite class
     """
+
     def __repr__(self):
-        text = self.text.encode('utf-8') if isinstance(self.text, unicode) \
-            else self.text
+        if isinstance(self.text, str):
+            text = self.text.encode('utf-8')
+        else:
+            self.text
         return '<%s text=%s>' % (self.__class__.__name__, text)
 
 
@@ -105,7 +117,8 @@ class NumericTextInput(SelectableView, TextInput):
         try:
             self.val = int(self.text)
         except ValueError:
-            error = "Only numeric value in range {0}-{1} to be used".format(minval, maxval)
+            error = "Only numeric value in range {0}-{1} to be used".format(
+                minval, maxval)
             self.hint_text = error
 
         self._update_width()
@@ -113,7 +126,7 @@ class NumericTextInput(SelectableView, TextInput):
 
     def _update_width(self):
         if self.data_model.blockname not in ['input_registers',
-                                         'holding_registers']:
+                                             'holding_registers']:
             self.padding_x = self.width
 
     def on_touch_down(self, touch):
@@ -173,6 +186,7 @@ class UpdateEventDispatcher(EventDispatcher):
     '''
     Event dispatcher for updates in Data Model
     '''
+
     def __init__(self, **kwargs):
         self.register_event_type('on_update')
         super(UpdateEventDispatcher, self).__init__(**kwargs)
@@ -272,7 +286,7 @@ class DataModel(GridLayout):
                 if self.is_simulating:
                     self.simulate_timer.cancel()
                 self.simulate_timer = BackgroundJob("simulation", self.time_interval,
-                                                     self._simulate_block_values)
+                                                    self._simulate_block_values)
                 self.dirty_thread = False
                 self.start_stop_simulation(self.simulate)
         except ValueError:

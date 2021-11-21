@@ -1,10 +1,10 @@
 from kivy.uix.settings import SettingItem
-from kivy.properties import (ListProperty,
-                             ObjectProperty)
+from kivy.properties import ListProperty, ObjectProperty
 from kivy.compat import text_type
 from kivy.lang import Builder
 
-kv = '''<SettingIntegerWithRange>:
+Builder.load_string("""
+<SettingIntegerWithRange>:
     textinput: textinput
 
     ToggleButton:
@@ -14,6 +14,7 @@ kv = '''<SettingIntegerWithRange>:
         on_release: root.override(*args)
         size_hint: (1, .5)
         pos_hint:{'center_x': .5, 'y': 0.25}
+
     TextInput:
         id:textinput
         text: root.value or ''
@@ -23,14 +24,12 @@ kv = '''<SettingIntegerWithRange>:
         on_text_validate: root._validate(*args)
         size_hint: (1, .5)
         pos_hint:{'center_x': .5, 'y': 0.25}
-
-
-'''
-Builder.load_string(kv)
+""")
 
 
 class SettingIntegerWithRange(SettingItem):
-    '''Implementation of a numeric setting with range on top of a
+    '''
+    Implementation of a numeric setting with range on top of a
     :class:`SettingNumeric`. It is visualized with a
     :class:`~kivy.uix.label.Label` widget that, when
     clicked, will open a :class:`~kivy.uix.popup.Popup` with a
@@ -95,5 +94,3 @@ class SettingIntegerWithRange(SettingItem):
                 self.value = str(value)
 
             self.textinput.text = self.value
-
-

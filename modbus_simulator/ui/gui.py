@@ -3,7 +3,6 @@ Modbus Simu App
 ===============
 """
 import kivy
-import six
 import struct
 from kivy.app import App
 from kivy.properties import ObjectProperty
@@ -16,7 +15,7 @@ from kivy.adapters.listadapter import ListAdapter
 from modbus_simulator.utils.constants import BLOCK_TYPES
 from modbus_simulator.utils.common import configure_modbus_logger
 from modbus_simulator.ui.settings import SettingIntegerWithRange
-from modbus_simulator.utils.backgroundJob import BackgroundJob
+from modbus_simulator.utils.background_job import BackgroundJob
 import re
 import os
 import platform
@@ -24,30 +23,25 @@ import platform
 from json import load, dump
 from kivy.config import Config
 from kivy.lang import Builder
-import modbus_simulator.ui.datamodel  #noqa
+import modbus_simulator.ui.datamodel  # noqa
 from pkg_resources import resource_filename
 from serial.serialutil import SerialException
 
 from distutils.version import LooseVersion
 
-kivy.require('1.4.2')
+from modbus_simulator.utils.modbus import ModbusSimulator
 
-if six.PY3:
-    xrange = range
+kivy.require('1.4.2')
 
 IS_DARWIN = platform.system().lower() == "darwin"
 OSX_SIERRA = LooseVersion("10.12")
+
 if IS_DARWIN:
     IS_HIGH_SIERRA_OR_ABOVE = LooseVersion(platform.mac_ver()[0])
 else:
     IS_HIGH_SIERRA_OR_ABOVE = False
 
 DEFAULT_SERIAL_PORT = '/dev/ptyp0' if not IS_HIGH_SIERRA_OR_ABOVE else '/dev/ttyp0'
-
-if USE_PYMODBUS:
-    from modbus_simulator.utils.pymodbus_server import ModbusSimu
-else:
-    from modbus_simulator.utils.modbus import ModbusSimu
 
 
 MAP = {
@@ -128,7 +122,7 @@ class Gui(BoxLayout):
     reset_sim_btn = ObjectProperty()
 
     # Helpers
-    # slaves = ["%s" %i for i in xrange(1, 248)]
+    # slaves = ["%s" %i for i in range(1, 248)]
     _data_map = {"tcp": {}, "rtu": {}}
     active_slave = None
     server_running = False
@@ -316,23 +310,21 @@ class Gui(BoxLayout):
                 create_new = True
         if create_new:
 
-            self.modbus_device = ModbusSimu(server=self.active_server,
-                                            port=self.port.text,
-                                            **kwargs
-                                            )
+            self.modbus_device = ModbusSimulator(
+                server=self.active_server,
+                port=self.port.text,
+                **kwargs
+            )
             if self.slave is None:
 
                 adapter = ListAdapter(
-                        data=[],
-                        cls=ListItemButton,
-                        selection_mode='single'
+                    data=[],
+                    cls=ListItemButton,
+                    selection_mode='single'
                 )
                 self.slave = ListView(adapter=adapter)
 
             self._serial_settings_changed = False
-        elif self.active_server == "rtu":
-            if not USE_PYMODBUS:
-                self.modbus_device._serial.open()
 
     def start_server(self, btn):
         if btn.state == "down":
@@ -413,8 +405,8 @@ class Gui(BoxLayout):
         else:
             return
 
-        for slave_to_add in xrange(start_slave_add,
-                                   start_slave_add + slave_count):
+        for slave_to_add in range(start_slave_add,
+                                  start_slave_add + slave_count):
             if str(slave_to_add) in self.data_map:
                 return
             self.data_map[str(slave_to_add)] = {
@@ -483,7 +475,7 @@ class Gui(BoxLayout):
             return [success]
         if starting_address < 1:
             self.show_error("slave address (%s)"
-                            " should be greater than 0 "% starting_address)
+                            " should be greater than 0 " % starting_address)
             success = False
             return [success]
         if starting_address > 247:
@@ -526,7 +518,7 @@ class Gui(BoxLayout):
         tab = self.data_models.current_tab
         count = int(self.data_count.text)
         value = {}
-        for i in xrange(count):
+        for i in range(count):
             _value = {'value': 1}
             if tab in ['input_registers', 'holding_registers']:
                 _value['formatter'] = 'uint16'
@@ -637,7 +629,7 @@ class Gui(BoxLayout):
             _data['data'].update(data)
             _data['data'] = dict(ct.content.update_registers(_data['data'],
                                                              _updated)
-            )
+                                 )
 
         except KeyError:
             pass
@@ -796,9 +788,9 @@ class Gui(BoxLayout):
         if self.slave is None:
 
             adapter = ListAdapter(
-                    data=[],
-                    cls=ListItemButton,
-                    selection_mode='single'
+                data=[],
+                cls=ListItemButton,
+                selection_mode='single'
             )
             self.slave = ListView(adapter=adapter)
         self.slave_list.adapter.data = self.slave.adapter.data
@@ -809,7 +801,8 @@ class Gui(BoxLayout):
 
     def save_state(self):
         with open(SLAVES_FILE, 'w') as f:
-            slave = [int(slave_no) for slave_no in self.slave_list.adapter.data]
+            slave = [int(slave_no)
+                     for slave_no in self.slave_list.adapter.data]
             slaves_memory = []
             for slaves, mem in self.data_map.items():
                 for name, value in mem.items():
@@ -896,7 +889,8 @@ class Gui(BoxLayout):
                 _data = self.data_map[active_slave][memory_type]
                 _data['data'].update(memory_data)
                 _data['item_strings'] = list(sorted(memory_data.keys()))
-                self.update_backend(int(active_slave), memory_type, memory_data)
+                self.update_backend(int(active_slave),
+                                    memory_type, memory_data)
                 # self._update_data_models(active_slave,
                 #                          memory_map[memory_type],
                 #                          memory_data)
@@ -1124,7 +1118,7 @@ setting_panel = """
 """
 
 
-class ModbusSimuApp(App):
+class ModbusSimulatorApp(App):
     '''The kivy App that runs the main root. All we do is build a Gui
     widget into the root.'''
     gui = None
@@ -1134,6 +1128,7 @@ class ModbusSimuApp(App):
     settings_cls = SettingsWithSidebar
 
     def build(self):
+        exit(0)
         self.gui = Gui(
             modbus_log=os.path.join(self.user_data_dir, 'modbus.log')
         )
@@ -1207,8 +1202,8 @@ class ModbusSimuApp(App):
         if token == ("Simulation", "time interval"):
             self.gui.change_simulation_settings(time_interval=eval(value))
         if section == "Modbus Protocol" and key in ("bin max",
-                                           "bin min", "reg max",
-                                           "reg min", "override",
+                                                    "bin min", "reg max",
+                                                    "reg min", "override",
                                                     "word order", "byte order"):
             self.gui.change_datamodel_settings(key, value)
         if section == "Modbus Protocol" and key == "block start":
@@ -1217,8 +1212,4 @@ class ModbusSimuApp(App):
             self.gui.block_size = int(value)
 
     def close_settings(self, *args):
-        super(ModbusSimuApp, self).close_settings()
-
-
-def run():
-    ModbusSimuApp().run()
+        super(ModbusSimulatorApp, self).close_settings()

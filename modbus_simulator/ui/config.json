@@ -1,0 +1,262 @@
+[
+    {
+        "type": "title",
+        "title": "Modbus TCP Settings"
+    },
+    {
+        "type": "string",
+        "title": "IP",
+        "desc": "Modbus Server IP address",
+        "section": "Modbus Tcp",
+        "key": "IP"
+    },
+    {
+        "type": "title",
+        "title": "Modbus Serial Settings"
+    },
+    {
+        "type": "numeric",
+        "title": "baudrate",
+        "desc": "Modbus Serial baudrate",
+        "section": "Modbus Serial",
+        "key": "baudrate"
+    },
+    {
+        "type": "options",
+        "title": "bytesize",
+        "desc": "Modbus Serial bytesize",
+        "section": "Modbus Serial",
+        "key": "bytesize",
+        "options": [
+            "5",
+            "6",
+            "7",
+            "8"
+        ]
+    },
+    {
+        "type": "options",
+        "title": "parity",
+        "desc": "Modbus Serial parity",
+        "section": "Modbus Serial",
+        "key": "parity",
+        "options": [
+            "N",
+            "E",
+            "O",
+            "M",
+            "S"
+        ]
+    },
+    {
+        "type": "options",
+        "title": "stopbits",
+        "desc": "Modbus Serial stopbits",
+        "section": "Modbus Serial",
+        "key": "stopbits",
+        "options": [
+            "1",
+            "1.5",
+            "2"
+        ]
+    },
+    {
+        "type": "bool",
+        "title": "xonxoff",
+        "desc": "Modbus Serial xonxoff",
+        "section": "Modbus Serial",
+        "key": "xonxoff"
+    },
+    {
+        "type": "bool",
+        "title": "rtscts",
+        "desc": "Modbus Serial rtscts",
+        "section": "Modbus Serial",
+        "key": "rtscts"
+    },
+    {
+        "type": "bool",
+        "title": "dsrdtr",
+        "desc": "Modbus Serial dsrdtr",
+        "section": "Modbus Serial",
+        "key": "dsrdtr"
+    },
+    {
+        "type": "numeric",
+        "title": "timeout",
+        "desc": "Modbus Serial timeout",
+        "section": "Modbus Serial",
+        "key": "timeout"
+    },
+    {
+        "type": "numeric",
+        "title": "write timeout",
+        "desc": "Modbus Serial write timeout",
+        "section": "Modbus Serial",
+        "key": "writetimeout"
+    },
+    {
+        "type": "title",
+        "title": "Modbus Protocol Settings"
+    },
+    {
+        "type": "numeric",
+        "title": "Block Start",
+        "desc": "Modbus Block Start index",
+        "section": "Modbus Protocol",
+        "key": "Block Start"
+    },
+    {
+        "type": "options",
+        "title": "Byte Order",
+        "desc": "Modbus Byte Order",
+        "section": "Modbus Protocol",
+        "key": "Byte Order",
+        "options": [
+            "big",
+            "little"
+        ]
+    },
+    {
+        "type": "options",
+        "title": "Word Order",
+        "desc": "Modbus Word Order",
+        "section": "Modbus Protocol",
+        "key": "Word Order",
+        "options": [
+            "big",
+            "little"
+        ]
+    },
+    {
+        "type": "numeric",
+        "title": "Block Size",
+        "desc": "Modbus Block Size for various registers/coils/inputs",
+        "section": "Modbus Protocol",
+        "key": "Block Size"
+    },
+    {
+        "type": "numeric_range",
+        "title": "Coil/Discrete Input MinValue",
+        "desc": "Minimum value a coil/discrete input can hold (0).An invalid value will be discarded unless Override flag is set",
+        "section": "Modbus Protocol",
+        "key": "bin min",
+        "range": [
+            0,
+            0
+        ]
+    },
+    {
+        "type": "numeric_range",
+        "title": "Coil/Discrete Input MaxValue",
+        "desc": "Maximum value a coil/discrete input can hold (1). An invalid value will be discarded unless Override flag is set",
+        "section": "Modbus Protocol",
+        "key": "bin max",
+        "range": [
+            1,
+            1
+        ]
+    },
+    {
+        "type": "numeric_range",
+        "title": "Holding/Input register MinValue",
+        "desc": "Minimum value a registers can hold (0).An invalid value will be discarded unless Override flag is set",
+        "section": "Modbus Protocol",
+        "key": "reg min",
+        "range": [
+            0,
+            65535
+        ]
+    },
+    {
+        "type": "numeric_range",
+        "title": "Holding/Input register MaxValue",
+        "desc": "Maximum value a register input can hold (65535). An invalid value will be discarded unless Override flag is set",
+        "section": "Modbus Protocol",
+        "key": "reg max",
+        "range": [
+            0,
+            65535
+        ]
+    },
+    {
+        "type": "title",
+        "title": "Logging"
+    },
+    {
+        "type": "bool",
+        "title": "Modbus Master Logging Control",
+        "desc": " Enable/Disable Modbus Logging (console/file)",
+        "section": "Logging",
+        "key": "logging"
+    },
+    {
+        "type": "bool",
+        "title": "Modbus Console Logging",
+        "desc": " Enable/Disable Modbus Console Logging",
+        "section": "Logging",
+        "key": "console logging"
+    },
+    {
+        "type": "options",
+        "title": "Modbus console log levels",
+        "desc": "Log levels for modbus_tk",
+        "section": "Logging",
+        "key": "console log level",
+        "options": [
+            "INFO",
+            "WARNING",
+            "DEBUG",
+            "CRITICAL"
+        ]
+    },
+    {
+        "type": "bool",
+        "title": "Modbus File Logging",
+        "desc": " Enable/Disable Modbus File Logging",
+        "section": "Logging",
+        "key": "file logging"
+    },
+    {
+        "type": "options",
+        "title": "Modbus file log levels",
+        "desc": "file Log levels for modbus_tk",
+        "section": "Logging",
+        "key": "file log level",
+        "options": [
+            "INFO",
+            "WARNING",
+            "DEBUG",
+            "CRITICAL"
+        ]
+    },
+    {
+        "type": "path",
+        "title": "Modbus log file",
+        "desc": "Modbus log file (changes takes place only after next start of app)",
+        "section": "Logging",
+        "key": "log file"
+    },
+    {
+        "type": "title",
+        "title": "Simulation"
+    },
+    {
+        "type": "numeric",
+        "title": "Time interval",
+        "desc": "When simulation is enabled, data is changed for every 'n' seconds defined here",
+        "section": "Simulation",
+        "key": "time interval"
+    },
+    {
+        "type": "title",
+        "title": "State"
+    },
+    {
+        "type": "bool",
+        "title": "Load State",
+        "desc": "Whether the previous state should be loaded or not, if not the original state is loaded",
+        "section": "State",
+        "key": "load state"
+    }
+]

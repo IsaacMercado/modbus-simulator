@@ -1,24 +1,23 @@
 #:kivy 2.0
 #:import KivyLexer kivy.extras.highlight.KivyLexer
-#:import ListItemButton kivy.uix.listview.ListItemButton
-#:import sla kivy.adapters.listadapter
 
 <Separator@Widget>
     size_hint_y: None
     thickness: 2
     margin: 2
     height: self.thickness + 2 * self.margin
-    color: .5, .5, .5
+    color: (.5, .5, .5)
     canvas:
         Color:
-            rgb: self.color
+            # rgb: self.color
+            rgb: (.5, .5, .5)
         Rectangle:
             pos: self.x + self.margin, self.y + self.margin + 1
             size: self.width - 2 * self.margin , self.thickness
 
-
 <DataModel>:
 <FloatInput>:
+
 <Gui>:
     slave_list: slave_list
     data_models: data_model_screen
@@ -201,18 +200,17 @@
                 Label:
                     text: ""
                     size_hint_y: .05
-                #ListViewModal:
-                    #id: slave_list
-                ListView:
+                RecycleView:
                     id: slave_list
-                    size_hint: 1, 1
-                    adapter:
-                        sla.ListAdapter(
-                        data=[],
-                        cls=ListItemButton,
-                        selection_mode="single",
+                    viewclass: 'Button'
+                    data: []
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)
+                        default_size_hint: 1, None
+                        height: self.minimum_height
+                        orientation: 'vertical'
+                        size_hint: 1, 1
 
-                        )
         BoxLayout:
             id: data_model_loc
             orientation: 'vertical'

@@ -66,6 +66,7 @@ target/
 
 #JSONFiles
 *.json
+!**/ui/config.json
 
 /.venv
 

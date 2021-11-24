@@ -2,74 +2,54 @@
 Modbus Simu App
 ===============
 """
-import kivy
+import re
+from os import path
 import struct
+from json import load, dump
+from pathlib import Path
+from functools import partial
+
 from kivy.app import App
 from kivy.properties import ObjectProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.animation import Animation
 from kivy.uix.textinput import TextInput
 from kivy.uix.settings import SettingsWithSidebar
-from kivy.uix.listview import ListView, ListItemButton
-from kivy.adapters.listadapter import ListAdapter
-from modbus_simulator.utils.constants import BLOCK_TYPES
-from modbus_simulator.utils.common import configure_modbus_logger
-from modbus_simulator.ui.settings import SettingIntegerWithRange
-from modbus_simulator.utils.background_job import BackgroundJob
-import re
-import os
-import platform
-
-from json import load, dump
+# from kivy.uix.listview import ListView, ListItemButton
+# from kivy.adapters.listadapter import ListAdapter
 from kivy.config import Config
 from kivy.lang import Builder
-import modbus_simulator.ui.datamodel  # noqa
-from pkg_resources import resource_filename
+
 from serial.serialutil import SerialException
 
-from distutils.version import LooseVersion
-
+from modbus_simulator.utils.constants import BLOCK_TYPES
+from modbus_simulator.utils.common import configure_modbus_logger
+from modbus_simulator.utils.background_job import BackgroundJob
 from modbus_simulator.utils.modbus import ModbusSimulator
+from modbus_simulator.ui.settings import SettingIntegerWithRange
+import modbus_simulator.ui.datamodel  # noqa
 
-kivy.require('1.4.2')
+from .conts import ASSETS_DIR, TEMPLATES_DIR, DEFAULT_SERIAL_PORT, MAP
 
-IS_DARWIN = platform.system().lower() == "darwin"
-OSX_SIERRA = LooseVersion("10.12")
+ROOT = Path(__file__).parent
+SLAVES_FILE = ROOT.joinpath("slaves.json")
+settings_icon = ASSETS_DIR.joinpath("Control-Panel.png")
+app_icon = ASSETS_DIR.joinpath("riptideLogo.png")
 
-if IS_DARWIN:
-    IS_HIGH_SIERRA_OR_ABOVE = LooseVersion(platform.mac_ver()[0])
-else:
-    IS_HIGH_SIERRA_OR_ABOVE = False
-
-DEFAULT_SERIAL_PORT = '/dev/ptyp0' if not IS_HIGH_SIERRA_OR_ABOVE else '/dev/ttyp0'
-
-
-MAP = {
-    "coils": "coils",
-    'discrete inputs': 'discrete_inputs',
-    'input registers': 'input_registers',
-    'holding registers': 'holding_registers'
-}
-PARENT = __name__.split(".")[0]
-settings_icon = resource_filename(PARENT, "assets/Control-Panel.png")
-app_icon = resource_filename(PARENT, "assets/riptideLogo.png")
-modbus_template = resource_filename(PARENT, "templates/modbussimu.kv")
-Builder.load_file(modbus_template)
-
-SLAVES_FILE = resource_filename(__name__, "slaves.json")
+with open(ROOT.joinpath('config.json'), 'r') as file:
+    setting_panel = file.read()
 
 
 class FloatInput(TextInput):
-    pat2 = re.compile(r'\d+(?:,\d+)?')
     pat = re.compile('[^0-9]')
+    sub = partial(pat.sub, '')
 
     def insert_text(self, substring, from_undo=False):
-        pat = self.pat
         if '.' in self.text:
-            s = re.sub(pat, '', substring)
+            newstring = self.sub(substring)
         else:
-            s = '.'.join([re.sub(pat, '', s) for s in substring.split('.', 1)])
-        return super(FloatInput, self).insert_text(s, from_undo=from_undo)
+            newstring = '.'.join(map(self.sub, substring.split('.', 1)))
+        return super(FloatInput, self).insert_text(newstring, from_undo=from_undo)
 
 
 class Gui(BoxLayout):
@@ -141,11 +121,10 @@ class Gui(BoxLayout):
 
     def __init__(self, time_interval=1, modbus_log=None, **kwargs):
         super(Gui, self).__init__(**kwargs)
-        # time_interval = kwargs.get("time_interval", 1)
         self.settings.icon = settings_icon
         self.riptide_logo.app_icon = app_icon
         self.config = Config.get_configparser('app')
-        self.slave_list.adapter.bind(on_selection_change=self.select_slave)
+        # self.slave_list.adapter.bind(on_selection_change=self.select_slave)
         self.data_model_loc.disabled = True
         self.slave_pane.disabled = True
         self._init_coils()
@@ -156,21 +135,14 @@ class Gui(BoxLayout):
         )
         self.data_model_loc.disabled = True
         cfg = {
-            'no_modbus_log': not bool(eval(
-                self.config.get("Logging", "logging"))),
-            'no_modbus_console_log': not bool(
-                eval(self.config.get("Logging", "console logging"))),
-            'modbus_console_log_level': self.config.get("Logging",
-                                                        "console log level"),
-            'modbus_file_log_level': self.config.get("Logging",
-                                                     "file log level"),
-            'no_modbus_file_log': not bool(eval(
-                self.config.get("Logging", "file logging"))),
-
+            'no_modbus_log': not self.get_config("Logging", "logging", bool),
+            'no_modbus_console_log': not self.get_config("Logging", "console logging", bool),
+            'modbus_console_log_level': self.config.get("Logging", "console log level"),
+            'modbus_file_log_level': self.config.get("Logging", "file log level"),
+            'no_modbus_file_log': self.get_config("Logging", "file logging", bool),
             'modbus_log': modbus_log
         }
-        mod_lib = "modbus_tk" if not USE_PYMODBUS else "pymodbus"
-        configure_modbus_logger(cfg, protocol_logger=mod_lib)
+        configure_modbus_logger(cfg, protocol_logger="pymodbus")
         self.simu_time_interval = time_interval
         self.sync_modbus_thread = BackgroundJob(
             "modbus_sync",
@@ -178,12 +150,24 @@ class Gui(BoxLayout):
             self._sync_modbus_block_values
         )
         self.sync_modbus_thread.start()
-        self._slave_misc = {"tcp": [self.slave_start_add.text,
-                                    self.slave_end_add.text,
-                                    self.slave_count.text],
-                            "rtu": [self.slave_start_add.text,
-                                    self.slave_end_add.text,
-                                    self.slave_count.text]}
+        self._slave_misc = {
+            "tcp": [
+                self.slave_start_add.text,
+                self.slave_end_add.text,
+                self.slave_count.text
+            ],
+            "rtu": [
+                self.slave_start_add.text,
+                self.slave_end_add.text,
+                self.slave_count.text
+            ]
+        }
+
+    def get_config(self, key: str, value: str, function=None):
+        value_config = eval(self.config.get(key, value))
+        if function:
+            value_config = function(value_config)
+        return value_config
 
     @property
     def modbus_device(self):
@@ -210,12 +194,9 @@ class Gui(BoxLayout):
         self._data_map[self.active_server] = value
 
     def _init_coils(self):
-        time_interval = int(eval(self.config.get("Simulation",
-                                                 "time interval")))
-        minval = int(eval(self.config.get("Modbus Protocol",
-                                          "bin min")))
-        maxval = int(eval(self.config.get("Modbus Protocol",
-                                          "bin max")))
+        time_interval = self.get_config("Simulation", "time interval", int)
+        minval = self.get_config("Modbus Protocol", "bin min", int)
+        maxval = self.get_config("Modbus Protocol", "bin max", int)
 
         self.data_model_coil.init(
             blockname="coils",
@@ -235,16 +216,11 @@ class Gui(BoxLayout):
         )
 
     def _init_registers(self):
-        time_interval = int(eval(self.config.get("Simulation",
-                                                 "time interval")))
-        minval = int(eval(self.config.get("Modbus Protocol",
-                                          "reg min")))
-        maxval = int(eval(self.config.get("Modbus Protocol",
-                                          "reg max")))
-        self.block_start = int(eval(self.config.get("Modbus Protocol",
-                                                    "block start")))
-        self.block_size = int(eval(self.config.get("Modbus Protocol",
-                                                   "block size")))
+        time_interval = self.get_config("Simulation", "time interval", int)
+        minval = self.get_config("Modbus Protocol", "reg min", int)
+        maxval = self.get_config("Modbus Protocol", "reg max", int)
+        self.block_start = self.get_config("Modbus Protocol", "block start", int)
+        self.block_size = self.get_config("Modbus Protocol", "block size", int)
         self.word_order = self.config.get("Modbus Protocol", "word order")
         self.byte_order = self.config.get("Modbus Protocol", "byte order")
 
@@ -277,7 +253,6 @@ class Gui(BoxLayout):
         kwargs['byte_order'] = self.byte_order
         kwargs['word_order'] = self.word_order
         if self.active_server == "rtu":
-
             kwargs["baudrate"] = int(eval(
                 self.config.get('Modbus Serial', "baudrate")))
             kwargs["bytesize"] = int(eval(
@@ -330,9 +305,9 @@ class Gui(BoxLayout):
         if btn.state == "down":
             try:
                 self._start_server()
-            except SerialException as e:
+            except SerialException as err:
                 btn.state = "normal"
-                self.show_error("Error in opening Serial port: %s" % e)
+                self.show_error("Error in opening Serial port: %s" % err)
                 return
             btn.text = "Stop"
         else:
@@ -405,8 +380,9 @@ class Gui(BoxLayout):
         else:
             return
 
-        for slave_to_add in range(start_slave_add,
-                                  start_slave_add + slave_count):
+        for slave_to_add in range(
+            start_slave_add, start_slave_add + slave_count
+        ):
             if str(slave_to_add) in self.data_map:
                 return
             self.data_map[str(slave_to_add)] = {
@@ -437,10 +413,12 @@ class Gui(BoxLayout):
             }
             self.modbus_device.add_slave(slave_to_add)
             for block_name, block_type in BLOCK_TYPES.items():
-                self.modbus_device.add_block(slave_to_add,
-                                             block_name, block_type,
-                                             self.block_start,
-                                             self.block_size)
+                self.modbus_device.add_block(
+                    slave_to_add,
+                    block_name, block_type,
+                    self.block_start,
+                    self.block_size
+                )
 
             data.append(str(slave_to_add))
         self.slave_list.adapter.data = data
@@ -470,18 +448,24 @@ class Gui(BoxLayout):
             slave_count = 1
 
         if str(starting_address) in data:
-            self.show_error("slave already present (%s)" % starting_address)
+            self.show_error(
+                "slave already present (%s)" % starting_address
+            )
             success = False
             return [success]
         if starting_address < 1:
-            self.show_error("slave address (%s)"
-                            " should be greater than 0 " % starting_address)
+            self.show_error(
+                "slave address (%s)"
+                " should be greater than 0 " % starting_address
+            )
             success = False
             return [success]
         if starting_address > 247:
-            self.show_error("slave address (%s)"
-                            " beyond supported modbus slave "
-                            "device address (247)" % starting_address)
+            self.show_error(
+                "slave address (%s)"
+                " beyond supported modbus slave "
+                "device address (247)" % starting_address
+            )
             success = False
             return [success]
 
@@ -489,9 +473,11 @@ class Gui(BoxLayout):
         size = slave_count if slave_count > size else size
 
         if (size + starting_address) > 247:
-            self.show_error("address range (%s) beyond "
-                            "allowed modbus slave "
-                            "devices(247)" % (size + starting_address))
+            self.show_error(
+                "address range (%s) beyond "
+                "allowed modbus slave "
+                "devices(247)" % (size + starting_address)
+            )
             success = False
             return [success]
         self.slave_end_add.text = str(starting_address + size - 1)
@@ -556,9 +542,13 @@ class Gui(BoxLayout):
             _data['data'].update(list_data)
             self.update_backend(int(active), current_tab, list_data)
         else:
-            msg = ("OutOfModbusBlockError: address %s"
-                   " is out of block size %s" % (len(value),
-                                                 self.block_size))
+            msg = (
+                "OutOfModbusBlockError: address %s"
+                " is out of block size %s" % (
+                    len(value),
+                    self.block_size
+                )
+            )
             self.show_error(msg)
 
     def sync_data_callback(self, blockname, data):
@@ -583,9 +573,12 @@ class Gui(BoxLayout):
                     # v = dict(value=int(v))
                     if not isinstance(v, dict):
                         v = dict(value=v)
-                    self.modbus_device.set_values(int(self.active_slave),
-                                                  current_tab,
-                                                  k, v.get('value'))
+                    self.modbus_device.set_values(
+                        int(self.active_slave),
+                        current_tab,
+                        k,
+                        v.get('value')
+                    )
         except KeyError:
             pass
         except struct.error:
@@ -627,9 +620,10 @@ class Gui(BoxLayout):
                             o = str(o)
                         data[o] = {'value': val, 'formatter': 'uint16'}
             _data['data'].update(data)
-            _data['data'] = dict(ct.content.update_registers(_data['data'],
-                                                             _updated)
-                                 )
+            _data['data'] = dict(ct.content.update_registers(
+                _data['data'],
+                _updated
+            ))
 
         except KeyError:
             pass
@@ -646,10 +640,11 @@ class Gui(BoxLayout):
 
         if deleted:
             self.update_backend(int(self.active_slave), current_tab, data)
-            msg = ("Deleting individual modbus register/discrete_inputs/coils "
-                   "is not supported. The data is removed from GUI and "
-                   "the corresponding value is updated to '0' in backend . ")
-            self.show_error(msg)
+            self.show_error((
+                "Deleting individual modbus register/discrete_inputs/coils "
+                "is not supported. The data is removed from GUI and "
+                "the corresponding value is updated to '0' in backend . "
+            ))
 
     def select_slave(self, adapter):
         ct = self.data_models.current_tab
@@ -817,8 +812,7 @@ class Gui(BoxLayout):
             ), f, indent=4)
 
     def load_state(self):
-        if not bool(eval(self.config.get("State", "load state"))) or \
-                not os.path.isfile(SLAVES_FILE):
+        if not self.get_config("State", "load state", bool) or not path.isfile(SLAVES_FILE):
             return
 
         with open(SLAVES_FILE, 'r') as f:
@@ -831,12 +825,16 @@ class Gui(BoxLayout):
                 )
                 return
 
-            if ('active_server' not in data
+            if (
+                'active_server' not in data
                     or 'port' not in data
                     or 'slaves_list' not in data
-                    or 'slaves_memory' not in data):
-                self.show_error("LoadError: Failed to load previous "
-                                "simulation state : JSON Key Missing")
+                    or 'slaves_memory' not in data
+            ):
+                self.show_error(
+                    "LoadError: Failed to load previous "
+                    "simulation state : JSON Key Missing"
+                )
                 return
 
             slaves_list = data['slaves_list']
@@ -889,249 +887,37 @@ class Gui(BoxLayout):
                 _data = self.data_map[active_slave][memory_type]
                 _data['data'].update(memory_data)
                 _data['item_strings'] = list(sorted(memory_data.keys()))
-                self.update_backend(int(active_slave),
-                                    memory_type, memory_data)
-                # self._update_data_models(active_slave,
-                #                          memory_map[memory_type],
-                #                          memory_data)
-
-
-setting_panel = """
-[
-  {
-    "type": "title",
-    "title": "Modbus TCP Settings"
-  },
-  {
-    "type": "string",
-    "title": "IP",
-    "desc": "Modbus Server IP address",
-    "section": "Modbus Tcp",
-    "key": "IP"
-  },
-  {
-    "type": "title",
-    "title": "Modbus Serial Settings"
-  },
-  {
-    "type": "numeric",
-    "title": "baudrate",
-    "desc": "Modbus Serial baudrate",
-    "section": "Modbus Serial",
-    "key": "baudrate"
-  },
-  {
-    "type": "options",
-    "title": "bytesize",
-    "desc": "Modbus Serial bytesize",
-    "section": "Modbus Serial",
-    "key": "bytesize",
-    "options": ["5", "6", "7", "8"]
-
-  },
-  {
-    "type": "options",
-    "title": "parity",
-    "desc": "Modbus Serial parity",
-    "section": "Modbus Serial",
-    "key": "parity",
-    "options": ["N", "E", "O", "M", "S"]
-  },
-  {
-    "type": "options",
-    "title": "stopbits",
-    "desc": "Modbus Serial stopbits",
-    "section": "Modbus Serial",
-    "key": "stopbits",
-    "options": ["1", "1.5", "2"]
-
-  },
-  {
-    "type": "bool",
-    "title": "xonxoff",
-    "desc": "Modbus Serial xonxoff",
-    "section": "Modbus Serial",
-    "key": "xonxoff"
-  },
-  {
-    "type": "bool",
-    "title": "rtscts",
-    "desc": "Modbus Serial rtscts",
-    "section": "Modbus Serial",
-    "key": "rtscts"
-  },
-  {
-    "type": "bool",
-    "title": "dsrdtr",
-    "desc": "Modbus Serial dsrdtr",
-    "section": "Modbus Serial",
-    "key": "dsrdtr"
-  },
-  {
-    "type": "numeric",
-    "title": "timeout",
-    "desc": "Modbus Serial timeout",
-    "section": "Modbus Serial",
-    "key": "timeout"
-  },
-  {
-    "type": "numeric",
-    "title": "write timeout",
-    "desc": "Modbus Serial write timeout",
-    "section": "Modbus Serial",
-    "key": "writetimeout"
-  },
-  {
-    "type": "title",
-    "title": "Modbus Protocol Settings"
-  },
-  {
-    "type": "numeric",
-    "title": "Block Start",
-    "desc": "Modbus Block Start index",
-    "section": "Modbus Protocol",
-    "key": "Block Start"
-  },
-  { "type": "options",
-    "title": "Byte Order",
-    "desc": "Modbus Byte Order",
-    "section": "Modbus Protocol",
-    "key": "Byte Order",
-    "options": ["big", "little"]
-  },
-  { "type": "options",
-    "title": "Word Order",
-    "desc": "Modbus Word Order",
-    "section": "Modbus Protocol",
-    "key": "Word Order",
-    "options": ["big", "little"]
-  },
-  { "type": "numeric",
-    "title": "Block Size",
-    "desc": "Modbus Block Size for various registers/coils/inputs",
-    "section": "Modbus Protocol",
-    "key": "Block Size"
-  },
-  {
-    "type": "numeric_range",
-    "title": "Coil/Discrete Input MinValue",
-    "desc": "Minimum value a coil/discrete input can hold (0).An invalid value will be discarded unless Override flag is set",
-    "section": "Modbus Protocol",
-    "key": "bin min",
-    "range": [0,0]
-  },
-  {
-    "type": "numeric_range",
-    "title": "Coil/Discrete Input MaxValue",
-    "desc": "Maximum value a coil/discrete input can hold (1). An invalid value will be discarded unless Override flag is set",
-    "section": "Modbus Protocol",
-    "key": "bin max",
-    "range": [1,1]
-
-  },
-  {
-    "type": "numeric_range",
-    "title": "Holding/Input register MinValue",
-    "desc": "Minimum value a registers can hold (0).An invalid value will be discarded unless Override flag is set",
-    "section": "Modbus Protocol",
-    "key": "reg min",
-    "range": [0,65535]
-  },
-  {
-    "type": "numeric_range",
-    "title": "Holding/Input register MaxValue",
-    "desc": "Maximum value a register input can hold (65535). An invalid value will be discarded unless Override flag is set",
-    "section": "Modbus Protocol",
-    "key": "reg max",
-    "range": [0,65535]
-  },
-  {
-    "type": "title",
-    "title": "Logging"
-  },
-  { "type": "bool",
-    "title": "Modbus Master Logging Control",
-    "desc": " Enable/Disable Modbus Logging (console/file)",
-    "section": "Logging",
-    "key": "logging"
-  },
-  { "type": "bool",
-    "title": "Modbus Console Logging",
-    "desc": " Enable/Disable Modbus Console Logging",
-    "section": "Logging",
-    "key": "console logging"
-  },
-  {
-    "type": "options",
-    "title": "Modbus console log levels",
-    "desc": "Log levels for modbus_tk",
-    "section": "Logging",
-    "key": "console log level",
-    "options": ["INFO", "WARNING", "DEBUG", "CRITICAL"]
-  },
-  { "type": "bool",
-    "title": "Modbus File Logging",
-    "desc": " Enable/Disable Modbus File Logging",
-    "section": "Logging",
-    "key": "file logging"
-  },
-  {
-    "type": "options",
-    "title": "Modbus file log levels",
-    "desc": "file Log levels for modbus_tk",
-    "section": "Logging",
-    "key": "file log level",
-    "options": ["INFO", "WARNING", "DEBUG", "CRITICAL"]
-  },
-
-  {
-    "type": "path",
-    "title": "Modbus log file",
-    "desc": "Modbus log file (changes takes place only after next start of app)",
-    "section": "Logging",
-    "key": "log file"
-  },
-  {
-    "type": "title",
-    "title": "Simulation"
-  },
-  {
-    "type": "numeric",
-    "title": "Time interval",
-    "desc": "When simulation is enabled, data is changed for every 'n' seconds defined here",
-    "section": "Simulation",
-    "key": "time interval"
-  },
-  {
-    "type": "title",
-    "title": "State"
-  },
-  {
-    "type": "bool",
-    "title": "Load State",
-    "desc": "Whether the previous state should be loaded or not, if not the original state is loaded",
-    "section": "State",
-    "key": "load state"
-  }
-
-]
-"""
+                self.update_backend(
+                    int(active_slave),
+                    memory_type,
+                    memory_data
+                )
+                # self._update_data_models(
+                #    active_slave,
+                #    memory_map[memory_type],
+                #    memory_data
+                # )
 
 
 class ModbusSimulatorApp(App):
-    '''The kivy App that runs the main root. All we do is build a Gui
-    widget into the root.'''
+    '''
+    The kivy App that runs the main root. All we do is build a Gui
+    widget into the root.
+    '''
     gui = None
     title = "Modbus Simulator"
     settings_cls = None
     use_kivy_settings = True
     settings_cls = SettingsWithSidebar
+    kv_directory = TEMPLATES_DIR
+    print(TEMPLATES_DIR)
+
+    @property
+    def modbus_log_dir(self):
+        return path.join(self.user_data_dir, 'modbus.log')
 
     def build(self):
-        exit(0)
-        self.gui = Gui(
-            modbus_log=os.path.join(self.user_data_dir, 'modbus.log')
-        )
+        self.gui = Gui(modbus_log=self.modbus_log_dir)
         self.gui.load_state()
         return self.gui
 
@@ -1175,8 +961,7 @@ class ModbusSimulatorApp(App):
         config.set('Modbus Serial', "timeout", 2)
 
         config.add_section('Logging')
-        config.set('Logging', "log file",  os.path.join(self.user_data_dir,
-                                                        'modbus.log'))
+        config.set('Logging', "log file",  self.modbus_log_dir)
 
         config.set('Logging', "logging", 1)
         config.set('Logging', "console logging", 1)
@@ -1192,19 +977,20 @@ class ModbusSimulatorApp(App):
 
     def build_settings(self, settings):
         settings.register_type("numeric_range", SettingIntegerWithRange)
-        settings.add_json_panel('Modbus Settings', self.config,
-                                data=setting_panel)
+        settings.add_json_panel(
+            'Modbus Settings',
+            self.config,
+            data=setting_panel
+        )
 
     def on_config_change(self, config, section, key, value):
         if config is not self.config:
             return
-        token = section, key
-        if token == ("Simulation", "time interval"):
+        if section == "Simulation" and key == "time interval":
             self.gui.change_simulation_settings(time_interval=eval(value))
-        if section == "Modbus Protocol" and key in ("bin max",
-                                                    "bin min", "reg max",
-                                                    "reg min", "override",
-                                                    "word order", "byte order"):
+        if section == "Modbus Protocol" and key in (
+            "bin max", "bin min", "reg max", "reg min", "override", "word order", "byte order"
+        ):
             self.gui.change_datamodel_settings(key, value)
         if section == "Modbus Protocol" and key == "block start":
             self.gui.block_start = int(value)

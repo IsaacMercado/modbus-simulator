@@ -1,6 +1,6 @@
 from random import randint, uniform
 from copy import deepcopy
-from kivy.adapters.dictadapter import DictAdapter
+# from kivy.adapters.dictadapter import DictAdapter
 from kivy.event import EventDispatcher
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -9,57 +9,48 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
-from kivy.uix.listview import ListItemButton, CompositeListItem, ListView, SelectableView
+# from kivy.uix.listview import ListItemButton, CompositeListItem, ListView, SelectableView
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.uix.dropdown import DropDown
+
+from kivy.uix.recycleview.views import RecycleDataViewBehavior
+from kivy.uix.recycleboxlayout import RecycleBoxLayout
+from kivy.uix.behaviors import FocusBehavior
+from kivy.uix.recycleview.layout import LayoutSelectionBehavior
+
+
 from modbus_simulator.utils.background_job import BackgroundJob
-from pkg_resources import resource_filename
+from .conts import TEMPLATES_DIR
 
-datamodel_template = resource_filename(__name__, "../templates/datamodel.kv")
-Builder.load_file(datamodel_template)
-
+Builder.load_file(str(TEMPLATES_DIR.joinpath('datamodel.kv')))
 integers_dict = {}
 
 
-class DropBut(SelectableView, Button):
-    # drop_list = None
-    types = [
-        'int16',
-        'int32',
-        'int64',
-        'uint16',
-        'uint32',
-        'uint64',
-        'float32',
-        'float64'
-    ]
-    drop_down = None
+class SelectableRecycleBoxLayout(FocusBehavior,
+                                 LayoutSelectionBehavior,
+                                 RecycleBoxLayout):
+    pass
 
-    def __init__(self, data_model, **kwargs):
-        super(DropBut, self).__init__(**kwargs)
-        self.data_model = data_model
-        self.drop_down = DropDown()
-        for i in self.types:
-            btn = Button(text=i, size_hint_y=None, height=45,
-                         background_color=(0.0, 0.5, 1.0, 1.0))
-            btn.bind(on_release=lambda b: self.drop_down.select(b.text))
-            self.drop_down.add_widget(btn)
 
-        self.bind(on_release=self.drop_down.open)
-        self.drop_down.bind(on_select=self.on_formatter_select)
+class MixinRecycleDataView:
+    index = None
+    selected = BooleanProperty(False)
+    selectable = BooleanProperty(True)
 
-    def select_from_composite(self, *args):
-        # self.bold = True
-        pass
+    def refresh_view_attrs(self, rv, index, data):
+        self.index = index
+        return super(MixinRecycleDataView, self).refresh_view_attrs(
+            rv, index, data)
 
-    def deselect_from_composite(self, *args):
-        # self.bold = False
-        pass
+    def on_touch_down(self, touch):
+        if super(MixinRecycleDataView, self).on_touch_down(touch):
+            return True
+        if self.collide_point(*touch.pos) and self.selectable:
+            return self.parent.select_with_touch(self.index, touch)
 
-    def on_formatter_select(self, instance, value):
-        self.data_model.on_formatter_update(self.index, self.text, value)
-        self.text = value
+    def apply_selection(self, rv, index, is_selected):
+        self.selected = is_selected
 
 
 class ErrorPopup(Popup):
@@ -68,7 +59,6 @@ class ErrorPopup(Popup):
     """
 
     def __init__(self, **kwargs):
-        # print kwargs
         super(ErrorPopup, self).__init__()
         # super(ErrorPopup, self).__init__(**kwargs)
         content = BoxLayout(orientation="vertical")
@@ -96,112 +86,8 @@ class ListItemReprMixin(Label):
         if isinstance(self.text, str):
             text = self.text.encode('utf-8')
         else:
-            self.text
+            text = self.text
         return '<%s text=%s>' % (self.__class__.__name__, text)
-
-
-class NumericTextInput(SelectableView, TextInput):
-    """
-    :class:`~kivy.uix.listview.NumericTextInput` mixes
-    :class:`~kivy.uix.listview.SelectableView` with
-    :class:`~kivy.uix.label.TextInput` to produce a label suitable for use in
-    :class:`~kivy.uix.listview.ListView`.
-    """
-    edit = BooleanProperty(False)
-
-    def __init__(self, data_model, minval, maxval, **kwargs):
-        self.minval = minval
-        self.maxval = maxval
-        self.data_model = data_model
-        super(NumericTextInput, self).__init__(**kwargs)
-        try:
-            self.val = int(self.text)
-        except ValueError:
-            error = "Only numeric value in range {0}-{1} to be used".format(
-                minval, maxval)
-            self.hint_text = error
-
-        self._update_width()
-        self.disabled = True
-
-    def _update_width(self):
-        if self.data_model.blockname not in ['input_registers',
-                                             'holding_registers']:
-            self.padding_x = self.width
-
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos) and not self.edit:
-            self.edit = True
-            self.select()
-        return super(NumericTextInput, self).on_touch_down(touch)
-
-    def select(self, *args):
-        self.disabled = False
-        self.bold = True
-        if isinstance(self.parent, CompositeListItem):
-            for child in self.parent.children:
-                # print child.children
-                pass
-            self.parent.select_from_child(self, *args)
-
-    def deselect(self, *args):
-        self.bold = False
-        self.disabled = True
-        if isinstance(self.parent, CompositeListItem):
-            self.parent.deselect_from_child(self, *args)
-
-    def select_from_composite(self, *args):
-        self.bold = True
-
-    def deselect_from_composite(self, *args):
-        self.bold = False
-
-    def on_text_validate(self, *args):
-
-        try:
-            float(self.text)
-
-            if not(self.minval <= float(self.text) <= self.maxval):
-                raise ValueError
-            self.edit = False
-            self.data_model.on_data_update(self.index, self.text)
-            self.deselect()
-        except ValueError:
-            error_text = ("Only numeric value "
-                          "in range {0}-{1} to be used".format(self.minval,
-                                                               self.maxval))
-            ErrorPopup(title="Error", text=error_text)
-            self.text = ""
-            self.hint_text = error_text
-            return
-
-    def on_text_focus(self, instance, focus):
-        if focus is False:
-            self.text = instance.text
-            self.edit = False
-            self.deselect()
-
-
-class UpdateEventDispatcher(EventDispatcher):
-    '''
-    Event dispatcher for updates in Data Model
-    '''
-
-    def __init__(self, **kwargs):
-        self.register_event_type('on_update')
-        super(UpdateEventDispatcher, self).__init__(**kwargs)
-
-    def on_update(self, _parent, blockname, data):
-        Logger.debug("In UpdateEventDispatcher "
-                     "on_update {parent:%s,"
-                     " blockname: %s, data:%s,}" % (_parent, blockname, data))
-        event = data.pop('event', None)
-        if event == 'sync_data':
-            _parent.sync_data_callback(blockname, data.get('data', {}))
-        else:
-            old_formatter = data.pop("old_formatter", None)
-            _parent.sync_formatter_callback(blockname, data.get('data', {}),
-                                            old_formatter)
 
 
 class DataModel(GridLayout):
@@ -211,8 +97,8 @@ class DataModel(GridLayout):
     to construct the fairly involved args_converter used with
     :class:`CompositeListItem`.
     """
-    minval = NumericProperty(0)
-    maxval = NumericProperty(0)
+    minval: float = NumericProperty(0)
+    maxval: float = NumericProperty(0)
     simulate = False
     time_interval = 1
     dirty_thread = False
@@ -226,12 +112,14 @@ class DataModel(GridLayout):
     blockname = "<BLOCK_NAME_NOT_SET>"
 
     def __init__(self, **kwargs):
-        kwargs['cols'] = 3
-        kwargs['size_hint'] = (1.0, 1.0)
+        kwargs = {
+            **kwargs,
+            **dict(cols=3, size_hint=(1.0, 1.0))
+        }
         super(DataModel, self).__init__(**kwargs)
         self.init()
 
-    def init(self, simulate=False, time_interval=1, **kwargs):
+    def init(self, simulate: bool = False, time_interval: float = 1, **kwargs):
         """
         Initializes Datamodel
 
@@ -242,12 +130,13 @@ class DataModel(GridLayout):
         self.clear_widgets()
         self.simulate = simulate
         self.time_interval = time_interval
-        dict_adapter = DictAdapter(data={},
-                                   args_converter=self.arg_converter,
-                                   selection_mode='single',
-                                   allow_empty_selection=True,
-                                   cls=CompositeListItem
-                                   )
+        dict_adapter = DictAdapter(
+            data={},
+            args_converter=self.arg_converter,
+            selection_mode='single',
+            allow_empty_selection=True,
+            cls=RecycleDataViewBehavior
+        )
 
         # Use the adapter in our ListView:
         self.list_view = ListView(adapter=dict_adapter)
@@ -285,8 +174,11 @@ class DataModel(GridLayout):
                 self.time_interval = time_interval
                 if self.is_simulating:
                     self.simulate_timer.cancel()
-                self.simulate_timer = BackgroundJob("simulation", self.time_interval,
-                                                    self._simulate_block_values)
+                self.simulate_timer = BackgroundJob(
+                    "simulation",
+                    self.time_interval,
+                    self._simulate_block_values
+                )
                 self.dirty_thread = False
                 self.start_stop_simulation(self.simulate)
         except ValueError:
@@ -328,7 +220,8 @@ class DataModel(GridLayout):
             'height': 30,
             'cls_dicts': [
                 {
-                    'cls': ListItemButton,
+                    # 'cls': ListItemButton,
+                    'cls': Button,
                     'kwargs': {'text': str(_id)}
                 }
             ]
@@ -344,7 +237,6 @@ class DataModel(GridLayout):
                         'text': str(data['value']),
                         'multiline': False,
                         'is_representing_cls': True,
-
                     }
                 },
                 {
@@ -545,12 +437,13 @@ class DataModel(GridLayout):
 
                     data[index]['value'] = value
                 self.refresh(data)
-                data = {'event': 'sync_data',
-                        'data': data}
-                self.dispatcher.dispatch('on_update',
-                                         self._parent,
-                                         self.blockname,
-                                         data)
+                data = {'event': 'sync_data', 'data': data}
+                self.dispatcher.dispatch(
+                    'on_update',
+                    self._parent,
+                    self.blockname,
+                    data
+                )
 
     def reset_block_values(self):
         if not self.simulate:
@@ -561,5 +454,170 @@ class DataModel(GridLayout):
                 self.list_view.adapter.data.update(data)
                 self.list_view.disabled = False
                 self.list_view._trigger_reset_populate()
-                self._parent.sync_data_callback(self.blockname,
-                                                self.list_view.adapter.data)
+                self._parent.sync_data_callback(
+                    self.blockname,
+                    self.list_view.adapter.data
+                )
+
+
+class DropBut(MixinRecycleDataView, RecycleDataViewBehavior, Button):
+    # drop_list = None
+    types = [
+        'int16',
+        'int32',
+        'int64',
+        'uint16',
+        'uint32',
+        'uint64',
+        'float32',
+        'float64'
+    ]
+    drop_down = None
+
+    def __init__(self, data_model: DataModel, **kwargs):
+        super(DropBut, self).__init__(**kwargs)
+        self.data_model = data_model
+        self.drop_down = DropDown()
+
+        for t in self.types:
+            btn = Button(
+                text=t, size_hint_y=None, height=45,
+                background_color=(0.0, 0.5, 1.0, 1.0)
+            )
+            btn.bind(on_release=lambda b: self.drop_down.select(b.text))
+            self.drop_down.add_widget(btn)
+
+        self.bind(on_release=self.drop_down.open)
+        self.drop_down.bind(on_select=self.on_formatter_select)
+
+    def select_from_composite(self, *args):
+        # self.bold = True
+        pass
+
+    def deselect_from_composite(self, *args):
+        # self.bold = False
+        pass
+
+    def on_formatter_select(self, instance, value):
+        self.data_model.on_formatter_update(self.index, self.text, value)
+        self.text = value
+
+
+class NumericTextInput(MixinRecycleDataView, RecycleDataViewBehavior, TextInput):
+    """
+    :class:`~kivy.uix.listview.NumericTextInput` mixes
+    :class:`~kivy.uix.listview.SelectableView` with
+    :class:`~kivy.uix.label.TextInput` to produce a label suitable for use in
+    :class:`~kivy.uix.listview.ListView`.
+    """
+    edit = BooleanProperty(False)
+
+    def __init__(self, data_model: DataModel, minval: float, maxval: float, **kwargs):
+        self.minval = minval
+        self.maxval = maxval
+        self.data_model = data_model
+        super(NumericTextInput, self).__init__(**kwargs)
+        try:
+            self.val = int(self.text)
+        except ValueError:
+            self.hint_text = "Only numeric value in range {0}-{1} to be used".format(
+                minval,
+                maxval
+            )
+
+        self._update_width()
+        self.disabled = True
+
+    def _update_width(self):
+        if self.data_model.blockname not in ['input_registers',
+                                             'holding_registers']:
+            self.padding_x = self.width
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos) and not self.edit:
+            self.edit = True
+            self.select()
+        return super(NumericTextInput, self).on_touch_down(touch)
+
+    def select(self, *args):
+        self.disabled = False
+        self.bold = True
+        if isinstance(self.parent, RecycleDataViewBehavior):
+            for child in self.parent.children:
+                # print child.children
+                pass
+            self.parent.select_from_child(self, *args)
+
+    def deselect(self, *args):
+        self.bold = False
+        self.disabled = True
+        if isinstance(self.parent, RecycleDataViewBehavior):
+            self.parent.deselect_from_child(self, *args)
+
+    def select_from_composite(self, *args):
+        self.bold = True
+
+    def deselect_from_composite(self, *args):
+        self.bold = False
+
+    def on_text_validate(self, *args):
+        try:
+            float(self.text)
+
+            if not(self.minval <= float(self.text) <= self.maxval):
+                raise ValueError
+            self.edit = False
+            self.data_model.on_data_update(self.index, self.text)
+            self.deselect()
+        except ValueError:
+            error_text = (
+                "Only numeric value "
+                "in range {0}-{1} to be used".format(
+                    self.minval,
+                    self.maxval
+                )
+            )
+            ErrorPopup(title="Error", text=error_text)
+            self.text = ""
+            self.hint_text = error_text
+            return
+
+    def on_text_focus(self, instance, focus):
+        if focus is False:
+            self.text = instance.text
+            self.edit = False
+            self.deselect()
+
+
+class UpdateEventDispatcher(EventDispatcher):
+    '''
+    Event dispatcher for updates in Data Model
+    '''
+
+    def __init__(self, **kwargs):
+        self.register_event_type('on_update')
+        super(UpdateEventDispatcher, self).__init__(**kwargs)
+
+    def on_update(self, _parent, blockname, data):
+        Logger.debug(
+            "In UpdateEventDispatcher "
+            "on_update {parent:%s, "
+            "blockname: %s, data:%s,}" % (
+                _parent,
+                blockname,
+                data
+            )
+        )
+        event = data.pop('event', None)
+        if event == 'sync_data':
+            _parent.sync_data_callback(
+                blockname,
+                data.get('data', {})
+            )
+        else:
+            old_formatter = data.pop("old_formatter", None)
+            _parent.sync_formatter_callback(
+                blockname,
+                data.get('data', {}),
+                old_formatter
+            )

@@ -7,8 +7,6 @@ import os
 
 parser = argparse.ArgumentParser('Use pymodbus as modbus backend')
 
-os.environ.setdefault('KIVY_WINDOW', 'pygame')
-os.environ.setdefault('KIVY_TEXT', 'pygame')
 os.environ.setdefault('KIVY_NO_ARGS', '1')
 
 

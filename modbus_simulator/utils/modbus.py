@@ -162,13 +162,18 @@ class ModbusSimulator(object):
         if server == "tcp":
             self._port = int(self._port)
             self._address = kwargs.get("address", "localhost")
-            self.server = ModbusTcpServer(self.context,
-                                          identity=self.identity,
-                                          address=(self._address, self._port))
+            self.server = ModbusTcpServer(
+                self.context,
+                identity=self.identity,
+                address=(self._address, self._port)
+            )
         else:
-            self.server = MbusSerialServer(self.context,
-                                           framer=ModbusRtuFramer,
-                                           identity=self.identity, **kwargs)
+            self.server = MbusSerialServer(
+                self.context,
+                framer=ModbusRtuFramer,
+                identity=self.identity,
+                **kwargs
+            )
         self.server_thread = ThreadedModbusServer(self.server)
 
     def _add_device_info(self):
@@ -193,7 +198,6 @@ class ModbusSimulator(object):
             hr=CustomDataBlock(0, 0),
             co=CustomDataBlock(0, 0),
             ir=CustomDataBlock(0, 0),
-
         )
 
     @staticmethod
@@ -222,8 +226,12 @@ class ModbusSimulator(object):
         if not slave.validate(_FX_MAPPER[block_name], starting_add, count=size):
             slave.store[_STORE_MAPPER[block_name]].update(size)
         else:
-            log.debug("Block '{}' on slave '{}' already exists".format(
-                block_name, slave_id))
+            log.debug(
+                "Block '{}' on slave '{}' already exists".format(
+                    block_name,
+                    slave_id
+                )
+            )
 
     def remove_block(self, slave_id, block_name):
         slave = self.get_slave(slave_id)

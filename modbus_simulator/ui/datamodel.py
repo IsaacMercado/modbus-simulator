@@ -453,34 +453,33 @@ class DataModel(RecycleView):
             self.is_simulating = False
 
     def _simulate_block_values(self):
-        if self.simulate:
-            if self.data:
-                for index, value in enumerate(self.data):
-                    formatter = self.data[index]['formatter']
+        if self.simulate and self.data:
+            for index, value in enumerate(self.data):
+                formatter = self.data[index]['formatter']
 
-                    if self.blockname in ['input_registers', 'holding_registers']:
-                        if 'float' in formatter:
-                            value = round(uniform(self.minval, self.maxval), 2)
-                        else:
-                            value = randint(self.minval, self.maxval)
-                            if 'uint' in formatter:
-                                value = abs(value)
+                if self.blockname in ['input_registers', 'holding_registers']:
+                    if 'float' in formatter:
+                        value = round(uniform(self.minval, self.maxval), 2)
                     else:
                         value = randint(self.minval, self.maxval)
+                        if 'uint' in formatter:
+                            value = abs(value)
+                else:
+                    value = randint(self.minval, self.maxval)
 
-                    data = self.data[index]
-                    data['value'] = value
-                    self.data[index] = data
+                data = self.data[index]
+                data['value'] = value
+                self.data[index] = data
 
-                self.refresh(self.data)
+            self.refresh(self.data)
 
-                data = {'event': 'sync_data', 'data': self.data}
-                self.dispatcher.dispatch(
-                    'on_update',
-                    self._parent,
-                    self.blockname,
-                    data
-                )
+            data = {'event': 'sync_data', 'data': self.data}
+            self.dispatcher.dispatch(
+                'on_update',
+                self._parent,
+                self.blockname,
+                data
+            )
 
     def reset_block_values(self):
         if not self.simulate:
@@ -605,13 +604,7 @@ class NumericTextInput(TextInput):
             self.data_model.on_data_update(self.index, self.text)
             self.deselect()
         except ValueError:
-            error_text = (
-                "Only numeric value "
-                "in range {0}-{1} to be used".format(
-                    self.minval,
-                    self.maxval
-                )
-            )
+            error_text = f"Only numeric value in range {self.minval}-{self.maxval} to be used"
             ErrorPopup(title="Error", text=error_text)
             self.text = ""
             self.hint_text = error_text

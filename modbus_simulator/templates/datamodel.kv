@@ -1,3 +1,70 @@
 #:kivy 2.0
-#!text
+
+<ButtonType@Button>:
+    size_hint_y: None
+    height: 45
+    background_color: 0.0, 0.5, 1.0, 1.0
+
+
+<RowDataLayout>:
+    orientation: 'vertical'
+    offset_label: offset_label
+    value_input: value_input
+    formatter_dropdown: formatter_dropdown
+
+    Label:
+        id: offset_label
+        text: '-' if root.offset is None else str(root.offset)
+        size_hint_y: None
+
+    TextInput:
+        id: value_input
+        text: '1'
+        size_hint_y: None
+
+    DropDown:
+        id: formatter_dropdown
+
+        ButtonType:
+            text: 'int16'
+            on_release: formatter_dropdown.select('int16')
+
+        ButtonType:
+            text: 'int32'
+            on_release: formatter_dropdown.select('int32')
+
+        ButtonType:
+            text: 'int64'
+            on_release: formatter_dropdown.select('int64')
+
+        ButtonType:
+            text: 'uint16'
+            on_release: formatter_dropdown.select('uint16')
+
+        ButtonType:
+            text: 'uint32'
+            on_release: formatter_dropdown.select('uint32')
+
+        ButtonType:
+            text: 'uint64'
+            on_release: formatter_dropdown.select('uint64')
+
+        ButtonType:
+            text: 'float32'
+            on_release: formatter_dropdown.select('float32')
+
+        ButtonType:
+            text: 'float64'
+            on_release: formatter_dropdown.select('float64')
+
+
 <DataModel>:
+    viewclass: 'RowDataLayout'
+    data: []
+
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: 'vertical'

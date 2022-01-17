@@ -1,14 +1,16 @@
 from random import randint, uniform
 from copy import deepcopy
-# from kivy.adapters.dictadapter import DictAdapter
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+
 from kivy.event import EventDispatcher
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.properties import BooleanProperty, NumericProperty
+from kivy.properties import BooleanProperty, NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
+# from kivy.adapters.dictadapter import DictAdapter
 # from kivy.uix.listview import ListItemButton, CompositeListItem, ListView, SelectableView
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
@@ -18,6 +20,7 @@ from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.uix.recycleboxlayout import RecycleBoxLayout
 from kivy.uix.behaviors import FocusBehavior
 from kivy.uix.recycleview.layout import LayoutSelectionBehavior
+from kivy.uix.recycleview import RecycleView
 
 
 from modbus_simulator.utils.background_job import BackgroundJob
@@ -26,31 +29,7 @@ from .conts import TEMPLATES_DIR
 Builder.load_file(str(TEMPLATES_DIR.joinpath('datamodel.kv')))
 integers_dict = {}
 
-
-class SelectableRecycleBoxLayout(FocusBehavior,
-                                 LayoutSelectionBehavior,
-                                 RecycleBoxLayout):
-    pass
-
-
-class MixinRecycleDataView:
-    index = None
-    selected = BooleanProperty(False)
-    selectable = BooleanProperty(True)
-
-    def refresh_view_attrs(self, rv, index, data):
-        self.index = index
-        return super(MixinRecycleDataView, self).refresh_view_attrs(
-            rv, index, data)
-
-    def on_touch_down(self, touch):
-        if super(MixinRecycleDataView, self).on_touch_down(touch):
-            return True
-        if self.collide_point(*touch.pos) and self.selectable:
-            return self.parent.select_with_touch(self.index, touch)
-
-    def apply_selection(self, rv, index, is_selected):
-        self.selected = is_selected
+Data = List[Dict[str, Union[str, int, str]]]
 
 
 class ErrorPopup(Popup):
@@ -58,23 +37,24 @@ class ErrorPopup(Popup):
     Popup class to display error messages
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, title, text, **kwargs):
         super(ErrorPopup, self).__init__()
         # super(ErrorPopup, self).__init__(**kwargs)
+
         content = BoxLayout(orientation="vertical")
-        content.add_widget(Label(text=kwargs['text'], font_size=20))
-        mybutton = Button(text="Dismiss", size_hint=(1, .20), font_size=20)
-        content.add_widget(mybutton)
+        content.add_widget(Label(text=text, font_size=20))
+
+        button = Button(text="Dismiss", size_hint=(1, .20), font_size=20)
+        button.bind(on_release=lambda *args: self.dismiss())
+        content.add_widget(button)
+
         self.content = content
-        self.title = kwargs["title"]
+        self.title = title
         self.auto_dismiss = False
         self.size_hint = .7, .5
         self.font_size = 20
-        mybutton.bind(on_release=self.exit_popup)
-        self.open()
 
-    def exit_popup(self, *args):
-        self.dismiss()
+        self.open()
 
 
 class ListItemReprMixin(Label):
@@ -89,8 +69,44 @@ class ListItemReprMixin(Label):
             text = self.text
         return '<%s text=%s>' % (self.__class__.__name__, text)
 
+# init reinit start_stop_simulation reset_block_values
 
-class DataModel(GridLayout):
+
+class RowDataLayout(RecycleDataViewBehavior, BoxLayout):
+    index = None
+    selected = BooleanProperty(False)
+    selectable = BooleanProperty(True)
+
+    offset = NumericProperty()
+    value = NumericProperty()
+    formatter: str = StringProperty()
+
+    offset_label: Label = ObjectProperty()
+    value_input: TextInput = ObjectProperty()
+    formatter_dropdown: DropDown = ObjectProperty()
+
+    def refresh_view_attrs(self, rv: RecycleView, index: int, data: List[Dict[str, Any]]):
+        self.index = index
+        return super(RowDataLayout, self).refresh_view_attrs(
+            rv, index, data)
+
+    def on_touch_down(self, touch):
+        if super(RowDataLayout, self).on_touch_down(touch):
+            return True
+        if self.collide_point(*touch.pos) and self.selectable:
+            return self.parent.select_with_touch(self.index, touch)
+
+    def apply_selection(self, rv: RecycleView, index: int, is_selected: bool):
+        rv.data[index]['selected'] = self.selected = is_selected
+
+    def on_value(self, instance, value):
+        pass
+
+    def on_formatter(self, instance, value):
+        pass
+
+
+class DataModel(RecycleView):
     """
     Uses :class:`CompositeListItem` for list item views comprised by two
     :class:`ListItemButton`s and one :class:`ListItemLabel`. Illustrates how
@@ -99,6 +115,7 @@ class DataModel(GridLayout):
     """
     minval: float = NumericProperty(0)
     maxval: float = NumericProperty(0)
+
     simulate = False
     time_interval = 1
     dirty_thread = False
@@ -111,12 +128,10 @@ class DataModel(GridLayout):
     is_simulating = False
     blockname = "<BLOCK_NAME_NOT_SET>"
 
-    def __init__(self, **kwargs):
-        kwargs = {
-            **kwargs,
-            **dict(cols=3, size_hint=(1.0, 1.0))
-        }
-        super(DataModel, self).__init__(**kwargs)
+    formatter: str = ''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.init()
 
     def init(self, simulate: bool = False, time_interval: float = 1, **kwargs):
@@ -130,6 +145,8 @@ class DataModel(GridLayout):
         self.clear_widgets()
         self.simulate = simulate
         self.time_interval = time_interval
+
+        '''
         dict_adapter = DictAdapter(
             data={},
             args_converter=self.arg_converter,
@@ -141,30 +158,27 @@ class DataModel(GridLayout):
         # Use the adapter in our ListView:
         self.list_view = ListView(adapter=dict_adapter)
         self.add_widget(self.list_view)
+        '''
+
         self.dispatcher = UpdateEventDispatcher()
         self._parent = kwargs.get('_parent', None)
-        self.simulate_timer = BackgroundJob(
+        """self.simulate_timer = BackgroundJob(
             "simulation",
             self.time_interval,
             self._simulate_block_values
-        )
+        )"""
 
-    def clear_widgets(self, make_dirty=False, **kwargs):
+    def clear_widgets(self, children=None, make_dirty=False):
         """
         Overidden Clear widget function used while deselecting/deleting slave
-        :param make_dirty:
-        :param kwargs:
-        :return:
         """
         if make_dirty:
             self.dirty_model = True
-        super(DataModel, self).clear_widgets(**kwargs)
+        return super().clear_widgets(children=children)
 
     def reinit(self, **kwargs):
         """
         Re-initializes Datamodel on change in model configuration from settings
-        :param kwargs:
-        :return:
         """
         self.minval = kwargs.get("minval", self.minval)
         self.maxval = kwargs.get("maxval", self.maxval)
@@ -184,17 +198,17 @@ class DataModel(GridLayout):
         except ValueError:
             Logger.debug("Error while reinitializing DataModel %s" % kwargs)
 
-    def update_view(self):
+    def update_view(self) -> None:
         """
         Updates view with listview again
-        :return:
         """
         if self.dirty_model:
-            self.add_widget(self.list_view)
+            # self.add_widget(self.list_view)
             self.dirty_model = False
 
-    def get_address(self, offset, as_string=False):
+    def get_address(self, offset, as_string=False) -> Union[str, int]:
         offset = int(offset)
+
         if self.blockname == "coils":
             offset = offset
         elif self.blockname == "discrete_inputs":
@@ -203,6 +217,7 @@ class DataModel(GridLayout):
             offset = 30001 + offset if offset < 30001 else offset
         else:
             offset = 40001 + offset if offset < 40001 else offset
+
         return str(offset) if as_string else offset
 
     def arg_converter(self, index, data):
@@ -212,7 +227,7 @@ class DataModel(GridLayout):
         :param data:
         :return:
         """
-        _id = self.get_address(self.list_view.adapter.sorted_keys[index])
+        _id = self.get_address(self.sorted_keys[index])
 
         payload = {
             'text': str(_id),
@@ -266,6 +281,13 @@ class DataModel(GridLayout):
 
         return payload
 
+    @property
+    def sorted_keys(self):
+        return sorted(map(
+            lambda row: int(row['address']),
+            self.data
+        ))
+
     def add_data(self, data):
         """
         Adds data to the Data model
@@ -275,25 +297,30 @@ class DataModel(GridLayout):
         """
         item_strings = []
         self.update_view()
-        current_keys = self.list_view.adapter.sorted_keys
+        current_keys = self.sorted_keys
         next_index = 0
-        key_as_string = False
+
         if current_keys:
             next_index = int(max(current_keys)) + 1
-            if not isinstance(current_keys[0], int):
-                key_as_string = True
-        data = {self.get_address(int(offset) + next_index, key_as_string): v
-                for offset, v in data.items()}
-        for offset, d in data.items():
-            # offset = self.get_address(offset)
-            item_strings.append(offset)
-            if int(offset) >= 30001:
-                if not d.get('formatter'):
-                    d['formatter'] = 'uint16'
 
-        self.list_view.adapter.data.update(data)
-        self.list_view._trigger_reset_populate()
-        return self.list_view.adapter.data, item_strings
+        data = [{
+            'offset': self.get_address(int(offset) + next_index),
+            **data
+        } for offset, data in data.items()]
+
+        for index in range(len(data)):
+            # offset = self.get_address(offset)
+            offset = data[index]['offset']
+            item_strings.append(offset)
+
+            if int(offset) >= 30001:
+                if not data[index].get('formatter'):
+                    data[index]['formatter'] = 'uint16'
+
+        # self.list_view.adapter.data.update(data)
+        self.data = data
+
+        return self.data, item_strings
 
     def delete_data(self, item_strings):
         """
@@ -303,16 +330,15 @@ class DataModel(GridLayout):
         """
         selections = self.list_view.adapter.selection
         items_popped = []
+
         for item in selections:
             index_popped = item_strings.pop(item_strings.index(int(item.text)))
             self.list_view.adapter.data.pop(int(item.text), None)
             self.list_view.adapter.update_for_new_data()
             self.list_view._trigger_reset_populate()
             items_popped.append(index_popped)
-        return items_popped,  self.list_view.adapter.data
 
-    def on_selection_change(self, item):
-        pass
+        return items_popped, self.data
 
     def on_data_update(self, index, data):
         """
@@ -322,60 +348,65 @@ class DataModel(GridLayout):
         :return:
         """
         index = self.get_address(self.list_view.adapter.sorted_keys[index])
+
         try:
-            self.list_view.adapter.data[index]
+            self.data[index]
         except KeyError:
             index = str(index)
-        if self.blockname in ['input_registers', 'holding_registers']:
-            self.list_view.adapter.data[index]['value'] = float(data)
-        else:
-            self.list_view.adapter.data[index]['value'] = int(data)
-        self.list_view._trigger_reset_populate()
-        data = {'event': 'sync_data',
-                'data': {index: self.list_view.adapter.data[index]}}
-        self.dispatcher.dispatch('on_update',
-                                 self._parent,
-                                 self.blockname,
-                                 data)
 
-    def on_formatter_update(self, index, old, new):
+        if self.blockname in ['input_registers', 'holding_registers']:
+            self.data[index]['value'] = float(data)
+        else:
+            self.data[index]['value'] = int(data)
+
+        data = {
+            'event': 'sync_data',
+            'data': {index: self.data[index]}
+        }
+        self.dispatcher.dispatch(
+            'on_update',
+            self._parent,
+            self.blockname,
+            data
+        )
+
+    def on_formatter_update(self, index: int, old: str, new: str) -> None:
         """
         Callback function to use the formatter selected in the list view
-        Args:
-            index:
-            data:
-
-        Returns:
-
         """
-        index = self.get_address(self.list_view.adapter.sorted_keys[index])
-        # index = self.get_address(int(index))
+        index = self.get_address(int(self.data[index]['address']))
+
         try:
-            self.list_view.adapter.data[index]['formatter'] = new
+            self.data[index]['formatter'] = new
         except KeyError:
             index = str(index)
-            self.list_view.adapter.data[index]['formatter'] = new
-        _data = {'event': 'sync_formatter',
-                 'old_formatter': old,
-                 'data': {index: self.list_view.adapter.data[index]}}
-        self.dispatcher.dispatch('on_update', self._parent,
-                                 self.blockname, _data)
-        self.list_view._trigger_reset_populate()
+            self.data[index]['formatter'] = new
 
-    def update_registers(self, new_values, update_info):
-        # new_values = deepcopy(new_values)
+        _data = {
+            'event': 'sync_formatter',
+            'old_formatter': old,
+            'data': {index: self.data[index]}
+        }
+
+        self.dispatcher.dispatch(
+            'on_update',
+            self._parent,
+            self.blockname,
+            _data
+        )
+
+    def update_registers(self, new_values, update_info: Dict):
         offset = update_info.get('offset')
         count = update_info.get('count')
         to_remove = None
+
         if count > 1:
-            offset = int(offset)
-            to_remove = [str(o) for o in list(range(offset+1, offset+count))]
+            to_remove = range(offset+1, offset+count)
 
-        self.list_view.adapter.update_for_new_data()
         self.refresh(new_values, to_remove)
-        return self.list_view.adapter.data
+        return self.data
 
-    def refresh(self, data={}, to_remove=None):
+    def refresh(self, data: Data = [], to_remove: Optional[Iterable] = None):
         """
         Data model refresh function to update when the view when slave is
         selected
@@ -384,17 +415,19 @@ class DataModel(GridLayout):
         :return:
         """
         self.update_view()
-        if not data or len(data) != len(self.list_view.adapter.data):
-            self.list_view.adapter.data = data
+
+        if not data or len(data) != len(self.data):
+            self.data = data
         else:
-            self.list_view.adapter.data.update(data)
+            for index, idata in enumerate(data):
+                if self.data[index] != idata:
+                    self.data[index] = idata
+
         if to_remove:
-            for entry in to_remove:
-                removed = self.list_view.adapter.data.pop(entry, None)
-                if not removed:
-                    self.list_view.adapter.data.pop(int(entry), None)
-        self.list_view.disabled = False
-        self.list_view._trigger_reset_populate()
+            for entry in sorted(to_remove, reverse=True):
+                self.data.pop(entry, None)
+
+        self.disabled = False
 
     def start_stop_simulation(self, simulate):
         """
@@ -421,23 +454,27 @@ class DataModel(GridLayout):
 
     def _simulate_block_values(self):
         if self.simulate:
-            data = self.list_view.adapter.data
-            if data:
-                for index, value in data.items():
-                    if self.blockname in ['input_registers',
-                                          'holding_registers']:
-                        if 'float' in data[index]['formatter']:
+            if self.data:
+                for index, value in enumerate(self.data):
+                    formatter = self.data[index]['formatter']
+
+                    if self.blockname in ['input_registers', 'holding_registers']:
+                        if 'float' in formatter:
                             value = round(uniform(self.minval, self.maxval), 2)
                         else:
                             value = randint(self.minval, self.maxval)
-                            if 'uint' in data[index]['formatter']:
+                            if 'uint' in formatter:
                                 value = abs(value)
                     else:
                         value = randint(self.minval, self.maxval)
 
-                    data[index]['value'] = value
-                self.refresh(data)
-                data = {'event': 'sync_data', 'data': data}
+                    data = self.data[index]
+                    data['value'] = value
+                    self.data[index] = data
+
+                self.refresh(self.data)
+
+                data = {'event': 'sync_data', 'data': self.data}
                 self.dispatcher.dispatch(
                     'on_update',
                     self._parent,
@@ -447,20 +484,19 @@ class DataModel(GridLayout):
 
     def reset_block_values(self):
         if not self.simulate:
-            data = self.list_view.adapter.data
-            if data:
-                for index, value in data.items():
-                    data[index]['value'] = 1
-                self.list_view.adapter.data.update(data)
-                self.list_view.disabled = False
-                self.list_view._trigger_reset_populate()
+            if self.data:
+                for index, data in enumerate(self.data):
+                    data['value'] = 1
+                    self.data[index] = data
+
+                self.disabled = False
                 self._parent.sync_data_callback(
                     self.blockname,
-                    self.list_view.adapter.data
+                    self.data
                 )
 
 
-class DropBut(MixinRecycleDataView, RecycleDataViewBehavior, Button):
+class DropBut(DropDown):
     # drop_list = None
     types = [
         'int16',
@@ -480,12 +516,12 @@ class DropBut(MixinRecycleDataView, RecycleDataViewBehavior, Button):
         self.drop_down = DropDown()
 
         for t in self.types:
-            btn = Button(
+            button = Button(
                 text=t, size_hint_y=None, height=45,
                 background_color=(0.0, 0.5, 1.0, 1.0)
             )
-            btn.bind(on_release=lambda b: self.drop_down.select(b.text))
-            self.drop_down.add_widget(btn)
+            button.bind(on_release=lambda b: self.drop_down.select(b.text))
+            self.drop_down.add_widget(button)
 
         self.bind(on_release=self.drop_down.open)
         self.drop_down.bind(on_select=self.on_formatter_select)
@@ -503,14 +539,14 @@ class DropBut(MixinRecycleDataView, RecycleDataViewBehavior, Button):
         self.text = value
 
 
-class NumericTextInput(MixinRecycleDataView, RecycleDataViewBehavior, TextInput):
+class NumericTextInput(TextInput):
     """
     :class:`~kivy.uix.listview.NumericTextInput` mixes
     :class:`~kivy.uix.listview.SelectableView` with
     :class:`~kivy.uix.label.TextInput` to produce a label suitable for use in
     :class:`~kivy.uix.listview.ListView`.
     """
-    edit = BooleanProperty(False)
+    edit: bool = BooleanProperty(False)
 
     def __init__(self, data_model: DataModel, minval: float, maxval: float, **kwargs):
         self.minval = minval
@@ -529,8 +565,7 @@ class NumericTextInput(MixinRecycleDataView, RecycleDataViewBehavior, TextInput)
         self.disabled = True
 
     def _update_width(self):
-        if self.data_model.blockname not in ['input_registers',
-                                             'holding_registers']:
+        if self.data_model.blockname not in ['input_registers', 'holding_registers']:
             self.padding_x = self.width
 
     def on_touch_down(self, touch):
@@ -621,3 +656,25 @@ class UpdateEventDispatcher(EventDispatcher):
                 data.get('data', {}),
                 old_formatter
             )
+
+
+if __name__ == '__main__':
+    Builder.load_string('''
+<RV>:
+    viewclass: 'Label'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: 'vertical'
+    ''')
+
+    class RV(RecycleView):
+        def __init__(self, **kwargs):
+            super(RV, self).__init__(**kwargs)
+            self.data = [{'text': str(x)} for x in range(100)]
+
+    from kivy.base import runTouchApp
+
+    runTouchApp(RV())

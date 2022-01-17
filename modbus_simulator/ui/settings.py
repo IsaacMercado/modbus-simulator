@@ -16,7 +16,7 @@ Builder.load_string("""
         pos_hint:{'center_x': .5, 'y': 0.25}
 
     TextInput:
-        id:textinput
+        id: textinput
         text: root.value or ''
         pos: root.pos
         font_size: "15sp"

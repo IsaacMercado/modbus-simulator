@@ -47,19 +47,11 @@ from .conts import ASSETS_DIR, TEMPLATES_DIR, DEFAULT_SERIAL_PORT, MAP
 
 ROOT = Path(__file__).parent
 SLAVES_FILE = ROOT.joinpath("slaves.json")
-settings_icon = ASSETS_DIR.joinpath("Control-Panel.png")
-app_icon = ASSETS_DIR.joinpath("riptideLogo.png")
+settings_icon = str(ASSETS_DIR.joinpath("Control-Panel.png"))
+app_icon = str(ASSETS_DIR.joinpath("riptideLogo.png"))
 
 with open(ROOT.joinpath('config.json'), 'r') as file:
     setting_panel = file.read()
-
-
-class IntInput(TextInput):
-    pat = re.compile('[^0-9]')
-
-    def insert_text(self, substring, from_undo=False):
-        substring = self.pat.sub('', substring)
-        return super(IntInput, self).insert_text(substring, from_undo=from_undo)
 
 
 class SelectableRecycleBoxLayout(FocusBehavior,
@@ -182,8 +174,8 @@ class Gui(BoxLayout):
 
     def __init__(self, time_interval=1, modbus_log=None, **kwargs):
         super(Gui, self).__init__(**kwargs)
-        self.settings.icon = settings_icon.as_posix()
-        self.riptide_logo.app_icon = app_icon.as_posix()
+        self.settings.icon = settings_icon
+        self.riptide_logo.app_icon = app_icon
         self.config = Config.get_configparser('app')
         self.data_model_loc.disabled = True
         self.slave_pane.disabled = True

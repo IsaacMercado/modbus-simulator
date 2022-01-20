@@ -649,25 +649,3 @@ class UpdateEventDispatcher(EventDispatcher):
                 data.get('data', {}),
                 old_formatter
             )
-
-
-if __name__ == '__main__':
-    Builder.load_string('''
-<RV>:
-    viewclass: 'Label'
-    RecycleBoxLayout:
-        default_size: None, dp(56)
-        default_size_hint: 1, None
-        size_hint_y: None
-        height: self.minimum_height
-        orientation: 'vertical'
-    ''')
-
-    class RV(RecycleView):
-        def __init__(self, **kwargs):
-            super(RV, self).__init__(**kwargs)
-            self.data = [{'text': str(x)} for x in range(100)]
-
-    from kivy.base import runTouchApp
-
-    runTouchApp(RV())

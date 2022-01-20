@@ -1,12 +1,12 @@
 #:kivy 2.0
-#:import KivyLexer kivy.extras.highlight.KivyLexer
 
-<Separator@Widget>
+<Separator@Widget>:
     size_hint_y: None
     thickness: 2
     margin: 2
     height: self.thickness + 2 * self.margin
     color: (.5, .5, .5)
+
     canvas:
         Color:
             # rgb: self.color
@@ -15,15 +15,10 @@
             pos: self.x + self.margin, self.y + self.margin + 1
             size: self.width - 2 * self.margin , self.thickness
 
-<DataModel>:
-
-<IntInput>:
-    input_filter: 'int'
-
-<SelectableRecycleBoxLayout>:
 
 <SelectableRecycleView>:
     viewclass: 'SelectableLabel'
+
     SelectableRecycleBoxLayout:
         default_size: None, dp(48)
         default_size_hint: 1, None
@@ -68,14 +63,16 @@
 
     BoxLayout:
         padding: '2sp'
+        size_hint: 1, None
+        height: '45sp'
+
         canvas:
             Color:
                 rgba: 1, 1, 1, .25
             Rectangle:
                 size: self.size
                 pos: self.pos
-        size_hint: 1, None
-        height: '45sp'
+
         BoxLayout:
             id: interfaces
             size_hint: None, 1
@@ -83,45 +80,58 @@
             width: '150sp'
             padding: '5sp'
             spacing: '10sp'
+
             BoxLayout:
                 size_hint: None, 1
+
                 Label:
                     text: "TCP"
+
                 CheckBox:
                     id: chkbx
                     active: True
                     group: "interface"
                     on_active: root.update_tcp_connection_info(*args)
+
             BoxLayout:
                 size_hint: None, 1
+
                 Label:
                     text: "Serial"
+
                 CheckBox:
                     id: chkbx2
                     group: "interface"
                     on_active: root.update_serial_connection_info(*args)
+
         Widget:
+
         BoxLayout:
             id: interface_settings
             orientation: 'vertical' if self.width < self.height else 'horizontal'
             size_hint: None, 1
             width: '200sp'
             padding: '2sp'
+
             Label:
                 text: "Port"
+
             TextInput:
                 id: txtBox
                 text: "5440"
                 multiline: False
 
         Widget:
+
         ToggleButton:
             id: start_stop_server
             size_hint: None, 1
             width: '108sp'
             text: 'Start'
             on_release: root.start_server(*args)
+
     Separator:
+
     BoxLayout:
         id: reactive_layout
         orientation: 'vertical' if self.width < self.height else 'horizontal'
@@ -136,208 +146,263 @@
             sizable_from: 'bottom' if self.vertical else 'right'
             size_hint: (1, None) if self.vertical else (None, 1)
             size: 400, 400
-
             on_vertical:
                 mid_size = self.max_size/2
                 if args[1]: self.height = mid_size
                 if not args[1]: self.width = mid_size
+
             BoxLayout:
                 orientation: 'vertical'
                 padding: '2sp'
+
                 canvas:
                     Color:
                         rgba: 1, 1, 1, .12
                     Rectangle:
                         size: self.size
                         pos: self.pos
+
                 Label:
                     text: "modbus slaves"
                     size_hint_y: .05
+
                 Separator:
+
                 BoxLayout:
                     orientation: 'horizontal'
                     padding: '2sp'
+                    size_hint: 1, None
+                    height: '45sp'
+
                     canvas:
                         Color:
                             rgba: 1, 1, 1, .25
                         Rectangle:
                             size: self.size
                             pos: self.pos
-                    size_hint: 1, None
-                    height: '45sp'
+
                     Button:
                         id: add_slave
                         text: "add"
                         on_release: root.add_slaves(*args)
+
                     Button:
                         id: delete_slave
                         text: "delete"
                         on_release: root.delete_slaves(*args)
+
                     ToggleButton:
                         id: enable_slaves
                         text: "enable all"
+
                 Separator:
+
                 BoxLayout:
                     orientation: 'vertical'
                     padding: '2sp'
+                    size_hint: 1, None
+                    height: '100sp'
+
                     canvas:
                         Color:
                             rgba: 1, 1, 1, .25
                         Rectangle:
                             size: self.size
                             pos: self.pos
-                    size_hint: 1, None
-                    height: '100sp'
+
                     BoxLayout:
                         orientation: "horizontal"
+
                         Label:
                             text: 'from'
                             size_hint: .25, 1
-                        IntInput:
+
+                        TextInput:
                             id: slave_start_add
                             text: "1"
                             size_hint: 1, .8
                             multiline: False
+                            input_type: "number"
+                            input_filter: "int"
+
                     BoxLayout:
                         orientation: "horizontal"
+
                         Label:
                             text: 'to'
                             size_hint: .25, 1
-                        IntInput:
+
+                        TextInput:
                             id: slave_end_add
                             text: "1"
                             size_hint: 1, .8
                             multiline: False
+                            input_type: "number"
+                            input_filter: "int"
+
                     BoxLayout:
                         orientation: "horizontal"
+
                         Label:
                             text: 'count'
                             size_hint: .25, 1
-                        IntInput:
+
+                        TextInput:
                             id: slave_count
                             text: "1"
                             size_hint: 1, .8
                             multiline: False
+                            input_type: "number"
+                            input_filter: "int"
+
                 Label:
                     text: ""
                     size_hint_y: .05
+
                 SelectableRecycleView:
                     id: slave_list
-                    data: []
 
         BoxLayout:
             id: data_model_loc
             orientation: 'vertical'
-
             padding: '2sp'
             #padding: 20
             #spacing: 10
+
             BoxLayout:
                 orientation: 'horizontal'
                 padding: '2sp'
+                size_hint: 1, None
+                height: '45sp'
+
                 canvas:
                     Color:
                         rgba: 1, 1, 1, .25
                     Rectangle:
                         size: self.size
                         pos: self.pos
-                size_hint: 1, None
-                height: '45sp'
+
                 Label:
                     id: add_data
                     text: "Count"
+
                 Widget:
-                IntInput:
+
+                TextInput:
                     id: data_count
                     text: "10"
+                    input_type: "number"
+                    input_filter: "int"
+
             Separator:
+
             BoxLayout:
                 orientation: 'horizontal'
                 padding: '2sp'
+                size_hint: 1, None
+                height: '45sp'
+
                 canvas:
                     Color:
                         rgba: 1, 1, 1, .25
                     Rectangle:
                         size: self.size
                         pos: self.pos
-                size_hint: 1, None
-                height: '45sp'
+
                 Button:
                     id: add_data
                     text: "add"
                     on_release: root.update_data_models(*args)
-#                Widget:
-#                Button:
-#                    id: delete_data
-#                    text: "delete"
-#                    disabled: True
-#                    on_release: root.delete_data_entry(*args)
-#                    hide: True
+
+                #Widget:
+
+                #Button:
+                #    id: delete_data
+                #    text: "delete"
+                #    disabled: True
+                #    on_release: root.delete_data_entry(*args)
+                #    hide: True
+
             Separator:
+
             TabbedPanel:
                 id: data_model_screen
                 fullscreen: True
                 tab_width: self.size[0]/len(self.tab_list)
                 do_default_tab: False
+
                 TabbedPanelItem:
                     text: 'coils'
+
                     DataModel:
                         id: coils
                         minval: 0
                         maxval: 1
+
                 TabbedPanelItem:
                     text: 'discrete inputs'
+
                     DataModel:
                         id: discrete_inputs
                         minval: 0
                         maxval: 100
+
                 TabbedPanelItem:
                     text: 'input registers'
+
                     DataModel:
                         id: input_registers
                         minval: 0
                         maxval: 100
+
                 TabbedPanelItem:
                     text: 'holding registers'
+
                     DataModel:
                         id: holding_registers
                         minval: 0
                         maxval: 100
+
     ActionBar:
         id: action_bar
         pos_hint: {'top':1}
+
         ActionView:
             use_separator: True
+
             ActionPrevious:
                 id: riptide_logo
                 with_previous: False
                 disabled: True
                 title: '    v2.0.0'
+
             ActionOverflow:
+
             ActionButton:
                 id: reset_simulation
                 text: 'Reset Simulation'
                 on_release: root.reset_simulation(*args)
+
             ActionToggleButton:
                 text: 'Simulate'
                 on_release: root.start_stop_simulation(*args)
+
             ActionButton:
                 id: settings
                 text: 'settings'
                 on_release: app.show_settings(*args)
 
-
-
     FloatLayout:
         size_hint: 1, None
         height: 0
+
         TextInput:
-            id:info_lbl
+            id: info_lbl
             readonly: True
             font_size: '14sp'
             background_color: (0, 0, 0, 1)
             foreground_color: (1, 1, 1, 1)
-            opacity:0
+            opacity: 0
             size_hint: 1, None
             text_size: self.size
             height: '150pt'

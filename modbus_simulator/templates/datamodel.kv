@@ -1,70 +1,48 @@
 #:kivy 2.0
 
-<ButtonType@Button>:
+<RowData>:
     size_hint_y: None
-    height: 45
-    background_color: 0.0, 0.5, 1.0, 1.0
-
-
-<RowDataLayout>:
-    orientation: 'vertical'
+    height: 30
     offset_label: offset_label
     value_input: value_input
-    formatter_dropdown: formatter_dropdown
+    formatter_button: formatter_button
+
+    canvas.before:
+        Color:
+            rgba: (.0, 0.9, .1, .3) if self.selected else (0, 0, 0, 1)
+        Rectangle:
+            pos: self.pos
+            size: self.size
 
     Label:
         id: offset_label
-        text: '-' if root.offset is None else str(root.offset)
-        size_hint_y: None
+        text: str(root.offset)
 
     TextInput:
         id: value_input
-        text: '1'
-        size_hint_y: None
+        text: str(root.value)
+        bold: root.selected
+        multiline: False
+        input_type: "number"
+        input_filter: "float"
+        on_focus: self.text = str(root.value) # correcting value
 
-    DropDown:
-        id: formatter_dropdown
-
-        ButtonType:
-            text: 'int16'
-            on_release: formatter_dropdown.select('int16')
-
-        ButtonType:
-            text: 'int32'
-            on_release: formatter_dropdown.select('int32')
-
-        ButtonType:
-            text: 'int64'
-            on_release: formatter_dropdown.select('int64')
-
-        ButtonType:
-            text: 'uint16'
-            on_release: formatter_dropdown.select('uint16')
-
-        ButtonType:
-            text: 'uint32'
-            on_release: formatter_dropdown.select('uint32')
-
-        ButtonType:
-            text: 'uint64'
-            on_release: formatter_dropdown.select('uint64')
-
-        ButtonType:
-            text: 'float32'
-            on_release: formatter_dropdown.select('float32')
-
-        ButtonType:
-            text: 'float64'
-            on_release: formatter_dropdown.select('float64')
-
+    Button:
+        id: formatter_button
+        text: root.formatter
+        visible: root.formatter != 'boolean'
+        size_hint_x: 1 if self.visible else 0
+        opacity: 1 if self.visible else 0
+        disabled: not self.visible
 
 <DataModel>:
-    viewclass: 'RowDataLayout'
-    data: []
+    viewclass: 'RowData'
 
-    RecycleBoxLayout:
-        default_size: None, dp(56)
+    SelectableRecycleBoxLayout:
+        default_size: None, 30
         default_size_hint: 1, None
         size_hint_y: None
         height: self.minimum_height
+        spacing: 2
         orientation: 'vertical'
+        touch_deselect_last: True

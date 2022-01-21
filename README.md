@@ -1,6 +1,11 @@
 # Modbus Simulator
 
-Modbus Simulator with GUI based on modbus-tk and Pymodbus
+Modbus Simulator with GUI based on Pymodbus
+
+## Installation
+    $ pip install git+https://github.com/riptideio/modbus-simulator.git
+    $ python -m modbus_simulator
+
 
 ## Checking Out the Source
     $ git clone https://github.com/riptideio/modbus-simulator.git
@@ -9,16 +14,9 @@ Modbus Simulator with GUI based on modbus-tk and Pymodbus
 
 ## Development Instructions
 1. create virtualenv and install requirements
-   
+
     ```
-    $ # Kivy depends on Cython, Install Cython before running the requirements
-    $ pip install Cython==0.29.2
     $ pip install -r requirements
-    $ # Choose Modbus Backend modbus_tk or pymodbus (default)
-    $ # To install pymodbus
-    $ pip install pymodbus==1.5.2
-    $ # To install modbus tk
-    $ Pip install modbus-tk
 
     ```
 
@@ -27,9 +25,7 @@ Modbus Simulator with GUI based on modbus-tk and Pymodbus
 
 ## Running/Testing application
 
-1. To run simulation with pymodbus backend, run `./tools/launcher`
-2. To run sumulation with modbus-tk as backend run `./tools/launcher mtk`
-
+To run simulation, run `python -m modbus_simulator`
 
 
 A GUi should show up if all the requirements are met !!

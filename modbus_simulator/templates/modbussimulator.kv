@@ -20,11 +20,13 @@
     viewclass: 'SelectableLabel'
 
     SelectableRecycleBoxLayout:
-        default_size: None, dp(48)
+        default_size: None, 30
         default_size_hint: 1, None
         size_hint_y: None
         height: self.minimum_height
+        spacing: 4
         orientation: 'vertical'
+        touch_deselect_last: True
 
 <SelectableLabel>:
     canvas.before:

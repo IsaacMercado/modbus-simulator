@@ -182,7 +182,7 @@ class ModbusSimulator(object):
         self.identity.VendorUrl = 'http://github.com/riptideio/'
         self.identity.ProductName = 'Modbus Server'
         self.identity.ModelName = 'Modbus Server'
-        self.identity.MajorMinorRevision = '2.0.0'
+        self.identity.MajorMinorRevision = '2.1.0'
 
     @property
     def server_type(self):
@@ -227,10 +227,7 @@ class ModbusSimulator(object):
             slave.store[_STORE_MAPPER[block_name]].update(size)
         else:
             log.debug(
-                "Block '{}' on slave '{}' already exists".format(
-                    block_name,
-                    slave_id
-                )
+                f"Block '{block_name}' on slave '{slave_id}' already exists"
             )
 
     def remove_block(self, slave_id, block_name):

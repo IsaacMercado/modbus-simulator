@@ -4,15 +4,15 @@ from modbus_simulator import __VERSION__
 
 def install_requires():
     with open('requirements') as reqs:
-        install_req = [
-            line for line in reqs.read().split('\n')
+        return [
+            line.strip() for line in reqs.read().split('\n') if line
         ]
-    return install_req
 
 
 def readme():
     with open("README.md") as f:
         return f.read()
+
 
 setup(
     name="modbus_simulator",
@@ -26,7 +26,7 @@ setup(
     install_requires=install_requires(),
     entry_points={
         'console_scripts': [
-            'modbus.simu = modbus_simulator.main:_run',
+            'modbus-simulator = modbus_simulator',
         ],
     },
     include_package_data=True

@@ -76,3 +76,4 @@ read
 .vscode/
 
 .venv
+venv/

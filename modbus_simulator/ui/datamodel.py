@@ -1,6 +1,7 @@
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 from random import uniform, randint
+from array import ArrayType, array
 from copy import deepcopy
 
 from kivy.lang import Builder
@@ -65,8 +66,12 @@ class TypeDropDown(DropDown):
         _, *dtypes = TYPE_RANGES.keys()
 
         for dtype in dtypes:
-            button = Button(text=dtype, size_hint_y=None, height=45,
-                            background_color=[0.0, 0.5, 1.0, 1.0])
+            button = Button(
+                text=dtype,
+                size_hint_y=None,
+                height=45,
+                background_color=[0.0, 0.5, 1.0, 1.0]
+            )
             button.bind(on_release=partial(self.select_type, dtype))
             self.add_widget(button)
 
@@ -78,7 +83,6 @@ class SelectableRecycleBoxLayout(FocusBehavior,
                                  LayoutSelectionBehavior,
                                  RecycleBoxLayout):
     pass
-
 
 class RowData(RecycleKVIDsDataViewBehavior, BoxLayout):
     index = None
@@ -118,7 +122,6 @@ class RowData(RecycleKVIDsDataViewBehavior, BoxLayout):
 
             if value >= minval and value <= maxval:
                 self.update_data(value=value, disabled=True)
-                # self.deselect()
                 return
 
         error_text = f"Only numeric value in range {minval}-{maxval} to be used"
@@ -254,9 +257,9 @@ class DataModel(RecycleView):
         )
 
     @property
-    def offsets(self) -> Tuple[Union[int, None]]:
-        return tuple(
-            map(lambda data: data.get("offset"), self.data)
+    def offsets(self):
+        return array(
+            "H", map(lambda data: data.get("offset"), self.data)
         )
 
     def get_address(self, offset) -> int:
@@ -277,47 +280,41 @@ class DataModel(RecycleView):
         :param data:
         :return:
         """
-        item_strings = []
         next_index = max(self.offsets) + 1 if self.offsets else 0
+        new_data = []
 
-        data = [{
-            'offset': self.get_address(int(offset) + next_index),
-            **data
-        } for offset, data in data.items()]
+        for index, value in data.items():
+            offset = self.get_address(int(index) + next_index)
+            formatter = value.get(
+                'formatter',
+                DEFAULT_FORMATTER if offset >= 30001 else 'boolean'
+            )
+            new_data.append(
+                {**value, 'offset': offset, 'formatter': formatter}
+            )
 
-        for index in range(len(data)):
-            offset = data[index]['offset']
-            item_strings.append(offset)
+        self.data.extend(new_data)
 
-            if not data[index].get('formatter'):
-                if int(offset) >= 30001:
-                    data[index]['formatter'] = 'uint16'
-                else:
-                    data[index]['formatter'] = 'boolean'
+        return self.data
 
-        self.data.extend(data)
-
-        return self.data, tuple(map(str, item_strings))
-
-    def delete_data(self, item_strings: List[str]):
+    def delete_data(self, items: Tuple[Data]):
         """
         Delete data from data model
-        :param item_strings:
+        :param items:
         :return:
         """
         items_popped = []
+        indices = sorted(
+            filter(lambda item: item, map(self.get_index, items)),
+            reverse=True
+        )
 
-        for item in self.selection:
-            index_popped = item_strings.pop(item_strings.index(int(item.text)))
-            self.list_view.adapter.data.pop(int(item.text), None)
-            self.list_view.adapter.update_for_new_data()
-            self.list_view._trigger_reset_populate()
-            items_popped.append(index_popped)
+        for index in indices:
+            items_popped.append(self.data.pop(index))
 
         return items_popped, self.data
 
     def change_data(self, model, **kwargs):
-        # print(kwargs)
         if "modified" in kwargs:
             for data in model.data[kwargs.get("modified")]:
                 modified_attrs = data.get("modified_attrs", ())
@@ -326,7 +323,6 @@ class DataModel(RecycleView):
                     continue
 
                 base_data = self.extract_data(data)
-
                 Logger.debug(f"Update {self.blockname} data: {base_data}")
 
                 if "value" in modified_attrs:
@@ -338,7 +334,7 @@ class DataModel(RecycleView):
 
                     if data.get("selected", False):
                         try:
-                            index = self.offsets.index(data.get("offset"))
+                            index = self.get_index(data)
                             self.data[index] = self.update_data(
                                 self.data[index],
                                 disabled=False
@@ -354,17 +350,14 @@ class DataModel(RecycleView):
                             data.get('previous_data', {}).get('formatter')
                         )
 
-    def set_data(self, data: Data, **changes: Data):
-        index = None
-
+    def get_index(self, data: Data):
         try:
-            index = self.data.index(data)
+            return self.offsets.index(data.get("offset"))
         except ValueError:
-            try:
-                index = self.offsets.index(data.get("offset"))
-            except ValueError:
-                pass
+            pass
 
+    def set_data(self, data: Data, **changes: Data):
+        index = self.get_index(data)
         if index:
             self.data[index] = self.update_data(data, **changes)
 

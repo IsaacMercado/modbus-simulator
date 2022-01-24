@@ -2,14 +2,13 @@
 Modbus Simu App
 ===============
 """
-from logging import Logger
 import re
 from os import path
 from struct import error as StructError
 import json
 from pathlib import Path
 from configparser import ConfigParser
-from typing import Callable, Dict, List
+from typing import Callable, List
 
 from kivy.app import App
 from kivy.animation import Animation
@@ -29,7 +28,7 @@ from kivy.uix.checkbox import CheckBox
 from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.splitter import Splitter
 from kivy.uix.actionbar import ActionButton, ActionPrevious
-from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
+from kivy.uix.tabbedpanel import TabbedPanel
 
 from serial.serialutil import SerialException
 
@@ -54,14 +53,12 @@ SLAVES_FILE = ROOT.joinpath("slaves.json")
 settings_icon = str(ASSETS_DIR.joinpath("Control-Panel.png"))
 app_icon = str(ASSETS_DIR.joinpath("riptideLogo.png"))
 
-with open(ROOT.joinpath('config.json'), 'r') as file:
-    setting_panel = file.read()
 
 re_digit = re.compile(r"\d+")
 
 
-def extract_int(text: str):
-    return int(''.join(re_digit.findall(text)))
+def extract_int(text: str, default: str = ''):
+    return int(str.join('', re_digit.findall(text)) or default)
 
 
 class SelectableLabel(RecycleDataViewBehavior, Label):
@@ -186,15 +183,16 @@ class Gui(BoxLayout):
             'Modbus Serial'
         )
         self.data_model_loc.disabled = True
-        cfg = {
+
+        configure_modbus_logger({
             'no_modbus_log': ~self.config.getboolean("Logging", "logging"),
             'no_modbus_console_log': ~self.config.getboolean("Logging", "console logging"),
             'modbus_console_log_level': self.config.get("Logging", "console log level"),
             'modbus_file_log_level': self.config.get("Logging", "file log level"),
             'no_modbus_file_log': self.config.getboolean("Logging", "file logging"),
             'modbus_log': modbus_log
-        }
-        configure_modbus_logger(cfg, protocol_logger="pymodbus")
+        }, protocol_logger="pymodbus")
+
         self.simu_time_interval = time_interval
         self.sync_modbus_thread = BackgroundJob(
             "modbus_sync",
@@ -430,30 +428,10 @@ class Gui(BoxLayout):
                 return
 
             self.data_map[str(slave_to_add)] = {
-                "coils": {
-                    'data': {},
-                    'item_strings': [],
-                    "instance": self.data_model_coil,
-                    "dirty": False
-                },
-                "discrete_inputs": {
-                    'data': {},
-                    'item_strings': [],
-                    "instance": self.data_model_discrete_inputs,
-                    "dirty": False
-                },
-                "input_registers": {
-                    'data': {},
-                    'item_strings': [],
-                    "instance": self.data_model_input_registers,
-                    "dirty": False
-                },
-                "holding_registers": {
-                    'data': {},
-                    'item_strings': [],
-                    "instance": self.data_model_holding_registers,
-                    "dirty": False
-                }
+                "coils": self.data_model_coil,
+                "discrete_inputs": self.data_model_discrete_inputs,
+                "input_registers": self.data_model_input_registers,
+                "holding_registers": self.data_model_holding_registers
             }
             self.modbus_device.add_slave(slave_to_add)
             for block_name, block_type in BLOCK_TYPES.items():
@@ -542,13 +520,11 @@ class Gui(BoxLayout):
     def delete_slaves(self, *args):
         selected = self.slave_list.selection
         slave = self.active_slave
-        current_tab = self.data_models.current_tab
 
         for item in selected:
             text = item['text']
             self.modbus_device.remove_slave(int(text))
             self.slave_list.data.pop(self.slave_list.index(text))
-            # current_tab.content.clear_widgets(make_dirty=True)
 
             if self.simulating:
                 self.simulating = False
@@ -562,42 +538,30 @@ class Gui(BoxLayout):
         tab = self.data_models.current_tab
         count = int(self.data_count.text)
         value = {}
+
         for i in range(count):
-            _value = {'value': 1}
+            _value = {'value': DEFAULT_VALUE}
             if tab in {'input_registers', 'holding_registers'}:
-                _value['formatter'] = 'uint16'
+                _value['formatter'] = DEFAULT_FORMATTER
 
             value[i] = _value
 
-        self._update_data_models(active, tab, value)
-
-    def _update_data_models(self, active: str, tab: TabbedPanelItem, value: Dict[int, Data]):
         current_tab = MAP[tab.text]
-        _data = self.data_map[active][current_tab]
+        instance = self.data_map[active][current_tab]
 
         registers = sum(
             map(
-                lambda data: extract_int(data.get('formatter', '16')),
-                _data["instance"].data
+                lambda data: extract_int(
+                    data.get('formatter'), '16'
+                ),
+                instance.data
             )
         )/16
 
-        # Old schema
-        if isinstance(value, list):
-            values = list(value)
-            value = {}
-            for index, ivalue in enumerate(values):
-                if not isinstance(ivalue, dict):
-                    value[index] = {'value': ivalue}
-                if current_tab in {'input_registers', 'holding_registers'}:
-                    value[index]['formatter'] = 'uint16'
-
         if registers + len(value) <= self.block_size:
-            list_data, item_strings = tab.content.add_data(value)
-            _data['item_strings'].extend(item_strings)
-            _data['item_strings'] = list(set(_data['item_strings']))
-            # _data['data'].update(list_data)
-            self.update_backend(int(active), current_tab, list_data)
+            self.update_backend(int(active),
+                                current_tab,
+                                tab.content.add_data(value))
 
         else:
             self.show_error(
@@ -640,7 +604,7 @@ class Gui(BoxLayout):
             current_tab = blockname
 
         try:
-            instance = self.data_map[self.active_slave][current_tab]["instance"]
+            instance = self.data_map[self.active_slave][current_tab]
             _updated = {}
 
             offset = data.get("offset")
@@ -675,7 +639,7 @@ class Gui(BoxLayout):
                     missing_data[noffset] = {
                         'offset': noffset,
                         'value': value,
-                        'formatter': 'uint16'
+                        'formatter': DEFAULT_FORMATTER
                     }
 
             for new_data in [data] + list(missing_data.values()):
@@ -691,15 +655,10 @@ class Gui(BoxLayout):
             pass
 
     def delete_data_entry(self, *args):
-        ct = self.data_models.current_tab
-        current_tab = MAP[ct.text]
-        _data = self.data_map[self.active_slave][current_tab]
-        item_strings = _data['item_strings']
-        deleted, data = ct.content.delete_data(item_strings)
-        dm = _data['data']
-
-        for index in deleted:
-            dm.pop(index, None)
+        tab = self.data_models.current_tab
+        current_tab = MAP[tab.text]
+        instance = self.data_map[self.active_slave][current_tab]
+        deleted, data = tab.content.delete_data(instance.selection)
 
         if deleted:
             self.update_backend(int(self.active_slave), current_tab, data)
@@ -710,8 +669,6 @@ class Gui(BoxLayout):
             )
 
     def select_slave(self, label: Label, is_selected: bool):
-        ct = self.data_models.current_tab
-
         if len(self.slave_list.selection) != 1:
             # Multiple selection - No Data Update
 
@@ -747,8 +704,6 @@ class Gui(BoxLayout):
             value = data.get("value", DEFAULT_VALUE)
             formatter = data.get('formatter', DEFAULT_FORMATTER)
 
-            print(data)
-
             if blockname in ('holding_registers', 'input_registers'):
                 self.modbus_device.encode(
                     slave_id,
@@ -772,11 +727,8 @@ class Gui(BoxLayout):
         self.data_model_holding_registers.reinit(**kwargs)
 
     def change_datamodel_settings(self, key: str, value: str):
-        data = {
-            "minval": float(value)
-        } if "max" in key else {
-            "maxval": float(value)
-        }
+        attr = "minval" if "max" in key else "maxval"
+        data = {attr: float(value)}
 
         if "bin" in key:
             self.data_model_coil.reinit(**data)
@@ -819,8 +771,8 @@ class Gui(BoxLayout):
         if not self.simulating and self.active_slave:
             _data_map = self.data_map[self.active_slave]
 
-            for block_name, data in _data_map.items():
-                for device in data['instance'].data:
+            for block_name, instance in _data_map.items():
+                for device in instance.data:
                     value = device.get("value", DEFAULT_VALUE)
                     formatter = device.get('formatter', DEFAULT_FORMATTER)
 
@@ -839,7 +791,7 @@ class Gui(BoxLayout):
                         )
 
                     if actual_data and (actual_data[0] != float(value)):
-                        data['instance'].set_data(device)
+                        instance.set_data(device)
 
     def _backup(self):
         if self.slave is not None:
@@ -863,25 +815,30 @@ class Gui(BoxLayout):
         # self.slave_list._trigger_reset_populate()
 
     def save_state(self):
-        with open(SLAVES_FILE, 'w') as f:
-            slave = [int(slave_no.get('text'))
-                     for slave_no in self.slave_list.data]
+        with open(SLAVES_FILE, 'w') as file:
+            slave = [
+                int(slave_no.get('text')) for slave_no in self.slave_list.data
+            ]
+
             slaves_memory = []
             for slaves, mem in self.data_map.items():
-                for name, value in mem.items():
-                    instance = value['instance']
+                for name, instance in mem.items():
                     if len(instance.data) != 0:
-                        slaves_memory.append(
-                            (
-                                slaves, name,
-                                list(map(instance.extract_data, instance.data))
-                            )
-                        )
+                        slaves_memory.append((
+                            slaves, name,
+                            list(map(instance.extract_data, instance.data))
+                        ))
 
-            json.dump(dict(
-                slaves_list=slave, active_server=self.active_server,
-                port=self.port.text, slaves_memory=slaves_memory
-            ), f, indent=4)
+            json.dump(
+                dict(
+                    slaves_list=slave,
+                    active_server=self.active_server,
+                    port=self.port.text,
+                    slaves_memory=slaves_memory
+                ),
+                file,
+                indent=4
+            )
 
     def load_state(self):
         if not self.config.getboolean("State", "load state") or not SLAVES_FILE.is_file():
@@ -949,7 +906,7 @@ class Gui(BoxLayout):
             slaves_memory = data['slaves_memory']
             for slave_memory in slaves_memory:
                 active_slave, memory_type, memory_data = slave_memory
-                instance = self.data_map[active_slave][memory_type]["instance"]
+                instance = self.data_map[active_slave][memory_type]
                 instance.data.extend(memory_data)
                 self.update_backend(
                     int(active_slave),
@@ -1038,7 +995,7 @@ class ModbusSimulatorApp(App):
         settings.add_json_panel(
             'Modbus Settings',
             self.config,
-            data=setting_panel
+            filename=ROOT.joinpath('config.json')
         )
 
     def on_config_change(self, config: ConfigParser, section: str, key: str, value: str):
